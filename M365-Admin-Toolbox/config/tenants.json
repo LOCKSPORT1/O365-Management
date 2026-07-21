@@ -1,0 +1,71 @@
+{
+  "GlobalSettings": {
+    "DefaultGraphEnvironment": "Global",
+    "LogRoot": ".\\logs",
+    "ReportRoot": ".\\reports",
+    "UseBetaGraphForIntune": false,
+    "DefaultCountry": "US",
+    "DefaultUsageLocation": "US",
+    "ModuleAutoInstall": true
+  },
+  "Tenants": [
+    {
+      "Name": "Tenant-Example-NA",
+      "TenantId": "00000000-0000-0000-0000-000000000000",
+      "PrimaryDomain": "contoso.com",
+      "ExchangeOrganization": "contoso.onmicrosoft.com",
+      "Region": "NA",
+      "LocationCode": "CHI",
+      "LocationName": "St. Charles, IL",
+      "PreferredAzureRegion": "centralus",
+      "OnPrem": {
+        "Enabled": true,
+        "DomainFqdn": "corp.contoso.com",
+        "OUPathUsers": "OU=Users,DC=corp,DC=contoso,DC=com",
+        "OUPathDisabledUsers": "OU=Disabled Users,DC=corp,DC=contoso,DC=com",
+        "RemoteHost": "dc01.corp.contoso.com",
+        "SyncAuthority": "OnPremAD"
+      },
+      "Cloud": {
+        "DefaultLicenseSkuPartNumbers": ["ENTERPRISEPACK"],
+        "DefaultUserGroups": [],
+        "DefaultDeviceCategories": [],
+        "DefaultUsageLocation": "US"
+      },
+      "AppRegistration": {
+        "ClientId": "11111111-1111-1111-1111-111111111111",
+        "CertificateThumbprint": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "UseAppOnly": false
+      }
+    },
+    {
+      "Name": "Tenant-Example-Cloud",
+      "TenantId": "22222222-2222-2222-2222-222222222222",
+      "PrimaryDomain": "fabrikam.com",
+      "ExchangeOrganization": "fabrikam.onmicrosoft.com",
+      "Region": "Global",
+      "LocationCode": "REMOTE",
+      "LocationName": "Any",
+      "PreferredAzureRegion": "eastus",
+      "OnPrem": {
+        "Enabled": false,
+        "DomainFqdn": "",
+        "OUPathUsers": "",
+        "OUPathDisabledUsers": "",
+        "RemoteHost": "",
+        "SyncAuthority": "CloudOnly"
+      },
+      "Cloud": {
+        "DefaultLicenseSkuPartNumbers": ["SPE_E5"],
+        "DefaultUserGroups": [],
+        "DefaultDeviceCategories": [],
+        "DefaultUsageLocation": "US"
+      },
+      "AppRegistration": {
+        "ClientId": "33333333-3333-3333-3333-333333333333",
+        "CertificateThumbprint": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "UseAppOnly": false
+      }
+    }
+  ]
+}

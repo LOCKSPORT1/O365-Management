@@ -1,0 +1,3 @@
+TenantName,HybridDisableOnPrem,SamAccountName,UserPrincipalName,ConvertMailboxToShared,RemoveLicenses,DisableDevices,RevokeSessions,MoveOnPremObjectToDisabledOU,RemoveFromAllNonDefaultGroups
+Tenant-Example-NA,true,jdoe,jdoe@contoso.com,true,true,true,true,true,true
+Tenant-Example-Cloud,false,asmith,asmith@fabrikam.com,false,true,true,true,false,false

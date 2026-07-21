@@ -1,0 +1,3 @@
+TenantName,HybridCreateOnPremFirst,SamAccountName,UserPrincipalName,DisplayName,GivenName,Surname,MailNickname,Department,JobTitle,OfficeLocation,UsageLocation,InitialPassword,LicenseSkuPartNumbers,GroupIds,OnPremGroups
+Tenant-Example-NA,true,jdoe,jdoe@contoso.com,John Doe,John,Doe,jdoe,IT,Systems Administrator,Chicago,US,ChangeMe!12345,ENTERPRISEPACK,00000000-0000-0000-0000-000000000123,GG-IT-Users;GG-VPN-Users
+Tenant-Example-Cloud,false,asmith,asmith@fabrikam.com,Alice Smith,Alice,Smith,asmith,HR,HR Manager,Remote,US,ChangeMe!12345,SPE_E5,00000000-0000-0000-0000-000000000456,

@@ -29,28 +29,29 @@ Describe 'Invoke-PrimaryUserRemediation' {
 
     Context 'WhatIf behavior' {
         It 'returns WhatIf for an eligible Change action' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-001'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-001'
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                CurrentUserId =
-                    $CurrentUserId
+                    CurrentUserId =
+                        $CurrentUserId
 
-                CurrentUserPrincipal =
-                    'olduser@example.com'
+                    CurrentUserPrincipal =
+                        'olduser@example.com'
 
-                RecommendedUserId =
-                    $RecommendedUserId
+                    RecommendedUserId =
+                        $RecommendedUserId
 
-                RecommendedUserPrincipal =
-                    'newuser@example.com'
+                    RecommendedUserPrincipal =
+                        'newuser@example.com'
 
-                RecommendedAction =
-                    'Change'
-            }
+                    RecommendedAction =
+                        'Change'
+                }
 
             $result =
                 $recommendation |
@@ -68,28 +69,29 @@ Describe 'Invoke-PrimaryUserRemediation' {
         }
 
         It 'returns WhatIf for an eligible Assign action' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-002'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-002'
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                CurrentUserId =
-                    ''
+                    CurrentUserId =
+                        ''
 
-                CurrentUserPrincipal =
-                    ''
+                    CurrentUserPrincipal =
+                        ''
 
-                RecommendedUserId =
-                    $RecommendedUserId
+                    RecommendedUserId =
+                        $RecommendedUserId
 
-                RecommendedUserPrincipal =
-                    'assigneduser@example.com'
+                    RecommendedUserPrincipal =
+                        'assigneduser@example.com'
 
-                RecommendedAction =
-                    'Assign'
-            }
+                    RecommendedAction =
+                        'Assign'
+                }
 
             $result =
                 $recommendation |
@@ -106,28 +108,29 @@ Describe 'Invoke-PrimaryUserRemediation' {
 
     Context 'Action filtering' {
         It 'skips a NoChange action' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-003'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-003'
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                CurrentUserId =
-                    $CurrentUserId
+                    CurrentUserId =
+                        $CurrentUserId
 
-                CurrentUserPrincipal =
-                    'user@example.com'
+                    CurrentUserPrincipal =
+                        'user@example.com'
 
-                RecommendedUserId =
-                    $CurrentUserId
+                    RecommendedUserId =
+                        $CurrentUserId
 
-                RecommendedUserPrincipal =
-                    'user@example.com'
+                    RecommendedUserPrincipal =
+                        'user@example.com'
 
-                RecommendedAction =
-                    'NoChange'
-            }
+                    RecommendedAction =
+                        'NoChange'
+                }
 
             $result =
                 $recommendation |
@@ -144,28 +147,29 @@ Describe 'Invoke-PrimaryUserRemediation' {
         }
 
         It 'skips a Review action' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-004'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-004'
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                CurrentUserId =
-                    $CurrentUserId
+                    CurrentUserId =
+                        $CurrentUserId
 
-                CurrentUserPrincipal =
-                    'user1@example.com'
+                    CurrentUserPrincipal =
+                        'user1@example.com'
 
-                RecommendedUserId =
-                    $RecommendedUserId
+                    RecommendedUserId =
+                        $RecommendedUserId
 
-                RecommendedUserPrincipal =
-                    'user2@example.com'
+                    RecommendedUserPrincipal =
+                        'user2@example.com'
 
-                RecommendedAction =
-                    'Review'
-            }
+                    RecommendedAction =
+                        'Review'
+                }
 
             $result =
                 $recommendation |
@@ -179,19 +183,20 @@ Describe 'Invoke-PrimaryUserRemediation' {
 
     Context 'Input validation' {
         It 'throws when DeviceName is missing' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    ''
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        ''
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                RecommendedUserId =
-                    $RecommendedUserId
+                    RecommendedUserId =
+                        $RecommendedUserId
 
-                RecommendedAction =
-                    'Change'
-            }
+                    RecommendedAction =
+                        'Change'
+                }
 
             {
                 $recommendation |
@@ -204,19 +209,20 @@ Describe 'Invoke-PrimaryUserRemediation' {
         }
 
         It 'throws when ManagedDeviceId is missing' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-005'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-005'
 
-                ManagedDeviceId =
-                    ''
+                    ManagedDeviceId =
+                        ''
 
-                RecommendedUserId =
-                    $RecommendedUserId
+                    RecommendedUserId =
+                        $RecommendedUserId
 
-                RecommendedAction =
-                    'Change'
-            }
+                    RecommendedAction =
+                        'Change'
+                }
 
             {
                 $recommendation |
@@ -227,19 +233,20 @@ Describe 'Invoke-PrimaryUserRemediation' {
         }
 
         It 'throws when RecommendedUserId is missing' {
-            $recommendation = [pscustomobject]@{
-                DeviceName =
-                    'PBI-TEST-006'
+            $recommendation =
+                [pscustomobject]@{
+                    DeviceName =
+                        'PBI-TEST-006'
 
-                ManagedDeviceId =
-                    $ManagedDeviceId
+                    ManagedDeviceId =
+                        $ManagedDeviceId
 
-                RecommendedUserId =
-                    ''
+                    RecommendedUserId =
+                        ''
 
-                RecommendedAction =
-                    'Change'
-            }
+                    RecommendedAction =
+                        'Change'
+                }
 
             {
                 $recommendation |
@@ -261,6 +268,19 @@ Describe 'Invoke-PrimaryUserRemediation' {
                         $RecommendedUserId
                 } {
 
+                Mock Get-IntunePrimaryUser {
+                    [pscustomobject]@{
+                        AssignedUserId =
+                            '22222222-2222-2222-2222-222222222222'
+
+                        AssignedUserPrincipal =
+                            'olduser@example.com'
+
+                        QueryStatus =
+                            'Retrieved'
+                    }
+                }
+
                 Mock Set-IntunePrimaryUser {
                     [pscustomobject]@{
                         ManagedDeviceId =
@@ -277,25 +297,26 @@ Describe 'Invoke-PrimaryUserRemediation' {
                     }
                 }
 
-                $recommendation = [pscustomobject]@{
-                    DeviceName =
-                        'PBI-TEST-007'
+                $recommendation =
+                    [pscustomobject]@{
+                        DeviceName =
+                            'PBI-TEST-007'
 
-                    ManagedDeviceId =
-                        $ManagedDeviceId
+                        ManagedDeviceId =
+                            $ManagedDeviceId
 
-                    CurrentUserPrincipal =
-                        'olduser@example.com'
+                        CurrentUserPrincipal =
+                            'olduser@example.com'
 
-                    RecommendedUserId =
-                        $RecommendedUserId
+                        RecommendedUserId =
+                            $RecommendedUserId
 
-                    RecommendedUserPrincipal =
-                        'newuser@example.com'
+                        RecommendedUserPrincipal =
+                            'newuser@example.com'
 
-                    RecommendedAction =
-                        'Change'
-                }
+                        RecommendedAction =
+                            'Change'
+                    }
 
                 $result =
                     $recommendation |
@@ -310,8 +331,14 @@ Describe 'Invoke-PrimaryUserRemediation' {
                     Should -Be 'Completed'
 
                 Should `
+                    -Invoke Get-IntunePrimaryUser `
+                    -Times 1 `
+                    -Exactly
+
+                Should `
                     -Invoke Set-IntunePrimaryUser `
                     -Times 1 `
+                    -Exactly `
                     -ParameterFilter {
                         $ManagedDeviceId -eq
                             '11111111-1111-1111-1111-111111111111' -and
@@ -334,29 +361,43 @@ Describe 'Invoke-PrimaryUserRemediation' {
                         $RecommendedUserId
                 } {
 
+                Mock Get-IntunePrimaryUser {
+                    [pscustomobject]@{
+                        AssignedUserId =
+                            '22222222-2222-2222-2222-222222222222'
+
+                        AssignedUserPrincipal =
+                            'olduser@example.com'
+
+                        QueryStatus =
+                            'Retrieved'
+                    }
+                }
+
                 Mock Set-IntunePrimaryUser {
                     throw 'Simulated Graph failure.'
                 }
 
-                $recommendation = [pscustomobject]@{
-                    DeviceName =
-                        'PBI-TEST-008'
+                $recommendation =
+                    [pscustomobject]@{
+                        DeviceName =
+                            'PBI-TEST-008'
 
-                    ManagedDeviceId =
-                        $ManagedDeviceId
+                        ManagedDeviceId =
+                            $ManagedDeviceId
 
-                    CurrentUserPrincipal =
-                        'olduser@example.com'
+                        CurrentUserPrincipal =
+                            'olduser@example.com'
 
-                    RecommendedUserId =
-                        $RecommendedUserId
+                        RecommendedUserId =
+                            $RecommendedUserId
 
-                    RecommendedUserPrincipal =
-                        'newuser@example.com'
+                        RecommendedUserPrincipal =
+                            'newuser@example.com'
 
-                    RecommendedAction =
-                        'Change'
-                }
+                        RecommendedAction =
+                            'Change'
+                    }
 
                 $result =
                     $recommendation |
@@ -369,73 +410,84 @@ Describe 'Invoke-PrimaryUserRemediation' {
 
                 $result.ErrorMessage |
                     Should -Be 'Simulated Graph failure.'
+
+                Should `
+                    -Invoke Get-IntunePrimaryUser `
+                    -Times 1 `
+                    -Exactly
+
+                Should `
+                    -Invoke Set-IntunePrimaryUser `
+                    -Times 1 `
+                    -Exactly
             }
         }
     }
 
     Context 'Pipeline processing' {
         It 'processes multiple recommendation records' {
-            $recommendations = @(
-                [pscustomobject]@{
-                    DeviceName =
-                        'PBI-TEST-009'
+            $recommendations =
+                @(
+                    [pscustomobject]@{
+                        DeviceName =
+                            'PBI-TEST-009'
 
-                    ManagedDeviceId =
-                        $ManagedDeviceId
+                        ManagedDeviceId =
+                            $ManagedDeviceId
 
-                    CurrentUserPrincipal =
-                        'olduser@example.com'
+                        CurrentUserPrincipal =
+                            'olduser@example.com'
 
-                    RecommendedUserId =
-                        $RecommendedUserId
+                        RecommendedUserId =
+                            $RecommendedUserId
 
-                    RecommendedUserPrincipal =
-                        'newuser@example.com'
+                        RecommendedUserPrincipal =
+                            'newuser@example.com'
 
-                    RecommendedAction =
-                        'Change'
-                }
+                        RecommendedAction =
+                            'Change'
+                    }
 
-                [pscustomobject]@{
-                    DeviceName =
-                        'PBI-TEST-010'
+                    [pscustomobject]@{
+                        DeviceName =
+                            'PBI-TEST-010'
 
-                    ManagedDeviceId =
-                        $ManagedDeviceId
+                        ManagedDeviceId =
+                            $ManagedDeviceId
 
-                    CurrentUserPrincipal =
-                        ''
+                        CurrentUserPrincipal =
+                            ''
 
-                    RecommendedUserId =
-                        $RecommendedUserId
+                        RecommendedUserId =
+                            $RecommendedUserId
 
-                    RecommendedUserPrincipal =
-                        'assigneduser@example.com'
+                        RecommendedUserPrincipal =
+                            'assigneduser@example.com'
 
-                    RecommendedAction =
-                        'Assign'
-                }
+                        RecommendedAction =
+                            'Assign'
+                    }
 
-                [pscustomobject]@{
-                    DeviceName =
-                        'PBI-TEST-011'
+                    [pscustomobject]@{
+                        DeviceName =
+                            'PBI-TEST-011'
 
-                    ManagedDeviceId =
-                        $ManagedDeviceId
+                        ManagedDeviceId =
+                            $ManagedDeviceId
 
-                    CurrentUserPrincipal =
-                        'user@example.com'
+                        CurrentUserPrincipal =
+                            'user@example.com'
 
-                    RecommendedUserId =
-                        $CurrentUserId
+                        RecommendedUserId =
+                            $CurrentUserId
 
-                    RecommendedUserPrincipal =
-                        'user@example.com'
+                        RecommendedUserPrincipal =
+                            'user@example.com'
 
-                    RecommendedAction =
-                        'NoChange'
-                }
-            )
+                        RecommendedAction =
+                            'NoChange'
+                    }
+                )
 
             $result =
                 $recommendations |
@@ -466,4 +518,3 @@ AfterAll {
         -Force `
         -ErrorAction SilentlyContinue
 }
-

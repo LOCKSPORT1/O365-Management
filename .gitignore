@@ -1,0 +1,22 @@
+﻿# Local configuration
+PrimaryUserAudit_Share/config/primary-user-audit.json
+
+# Generated output
+PrimaryUserAudit_Share/Logs/*
+PrimaryUserAudit_Share/Reports/*
+
+# Keep folders in Git
+!PrimaryUserAudit_Share/Logs/.gitkeep
+!PrimaryUserAudit_Share/Reports/.gitkeep
+
+# PowerShell temporary files
+*.tmp
+*.bak
+*.log
+
+# VS Code
+.vscode/
+
+# Operating system
+Thumbs.db
+.DS_Store

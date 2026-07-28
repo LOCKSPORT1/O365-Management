@@ -1,22 +1,29 @@
 function Invoke-PrimaryUserRemediation {
     <#
     .SYNOPSIS
-        Applies approved Intune primary-user recommendations.
+        Applies and verifies approved Intune primary-user recommendations.
 
     .DESCRIPTION
         Processes primary-user audit recommendation records.
 
-        Only Assign and Change actions are eligible by default. The function
-        supports WhatIf and Confirm through PowerShell ShouldProcess.
+        Assign and Change recommendations are eligible for remediation by
+        default. Other actions are returned as skipped.
 
-        Eligible actions call Set-IntunePrimaryUser only after ShouldProcess
-        approves the operation.
+        The function supports PowerShell ShouldProcess, including WhatIf and
+        Confirm. After a successful Microsoft Graph assignment request, the
+        function can query Intune again and verify the resulting primary user.
 
     .PARAMETER Recommendation
         One or more recommendation objects produced by the primary-user audit.
 
     .PARAMETER AllowedAction
         Recommendation actions that may be remediated.
+
+    .PARAMETER VerificationDelaySeconds
+        Number of seconds to wait before querying Intune to verify the change.
+
+    .PARAMETER SkipVerification
+        Completes remediation without querying Intune afterward.
 
     .EXAMPLE
         $Recommendations |
@@ -25,6 +32,18 @@ function Invoke-PrimaryUserRemediation {
     .EXAMPLE
         $Recommendations |
             Invoke-PrimaryUserRemediation -Confirm:$false
+
+    .EXAMPLE
+        $Recommendations |
+            Invoke-PrimaryUserRemediation `
+                -Confirm:$false `
+                -VerificationDelaySeconds 10
+
+    .EXAMPLE
+        $Recommendations |
+            Invoke-PrimaryUserRemediation `
+                -Confirm:$false `
+                -SkipVerification
     #>
 
     [CmdletBinding(
@@ -47,7 +66,14 @@ function Invoke-PrimaryUserRemediation {
         [string[]]$AllowedAction = @(
             'Assign',
             'Change'
-        )
+        ),
+
+        [Parameter()]
+        [ValidateRange(0, 300)]
+        [int]$VerificationDelaySeconds = 5,
+
+        [Parameter()]
+        [switch]$SkipVerification
     )
 
     begin {
@@ -60,13 +86,37 @@ function Invoke-PrimaryUserRemediation {
     process {
         foreach ($item in $Recommendation) {
             $deviceName =
-                [string]$item.DeviceName
+                if (
+                    $item.PSObject.Properties.Name -contains
+                    'DeviceName'
+                ) {
+                    [string]$item.DeviceName
+                }
+                else {
+                    ''
+                }
 
             $managedDeviceId =
-                [string]$item.ManagedDeviceId
+                if (
+                    $item.PSObject.Properties.Name -contains
+                    'ManagedDeviceId'
+                ) {
+                    [string]$item.ManagedDeviceId
+                }
+                else {
+                    ''
+                }
 
             $action =
-                [string]$item.RecommendedAction
+                if (
+                    $item.PSObject.Properties.Name -contains
+                    'RecommendedAction'
+                ) {
+                    [string]$item.RecommendedAction
+                }
+                else {
+                    ''
+                }
 
             $currentUserPrincipal =
                 if (
@@ -103,7 +153,15 @@ function Invoke-PrimaryUserRemediation {
                 }
 
             $recommendedUserId =
-                [string]$item.RecommendedUserId
+                if (
+                    $item.PSObject.Properties.Name -contains
+                    'RecommendedUserId'
+                ) {
+                    [string]$item.RecommendedUserId
+                }
+                else {
+                    ''
+                }
 
             if (
                 [string]::IsNullOrWhiteSpace(
@@ -147,6 +205,18 @@ function Invoke-PrimaryUserRemediation {
 
                         ErrorMessage =
                             $null
+
+                        VerificationStatus =
+                            'NotAttempted'
+
+                        VerifiedUserId =
+                            $null
+
+                        VerifiedUserPrincipal =
+                            $null
+
+                        VerificationMessage =
+                            'Verification was not attempted.'
                     }
                 )
 
@@ -164,10 +234,13 @@ function Invoke-PrimaryUserRemediation {
                 )
             }
 
+            $parsedManagedDeviceId =
+                [guid]::Empty
+
             if (
                 -not [guid]::TryParse(
                     $managedDeviceId,
-                    [ref]([guid]::Empty)
+                    [ref]$parsedManagedDeviceId
                 )
             ) {
                 throw (
@@ -187,10 +260,13 @@ function Invoke-PrimaryUserRemediation {
                 )
             }
 
+            $parsedRecommendedUserId =
+                [guid]::Empty
+
             if (
                 -not [guid]::TryParse(
                     $recommendedUserId,
-                    [ref]([guid]::Empty)
+                    [ref]$parsedRecommendedUserId
                 )
             ) {
                 throw (
@@ -199,15 +275,15 @@ function Invoke-PrimaryUserRemediation {
                 )
             }
 
-            $target = (
-                "$deviceName : " +
-                "$currentUserPrincipal -> " +
-                $recommendedUserPrincipal
-            )
+            $target =
+                (
+                    "$deviceName : " +
+                    "$currentUserPrincipal -> " +
+                    $recommendedUserPrincipal
+                )
 
-            $operation = (
+            $operation =
                 "Apply Intune Primary User action '$action'"
-            )
 
             if (
                 -not $PSCmdlet.ShouldProcess(
@@ -246,6 +322,18 @@ function Invoke-PrimaryUserRemediation {
 
                         ErrorMessage =
                             $null
+
+                        VerificationStatus =
+                            'NotAttempted'
+
+                        VerifiedUserId =
+                            $null
+
+                        VerifiedUserPrincipal =
+                            $null
+
+                        VerificationMessage =
+                            'Verification was not attempted.'
                     }
                 )
 
@@ -259,6 +347,82 @@ function Invoke-PrimaryUserRemediation {
                         -UserId $recommendedUserId `
                         -Execute `
                         -Verbose:$VerbosePreference
+
+                $verificationStatus =
+                    'NotAttempted'
+
+                $verifiedUserId =
+                    $null
+
+                $verifiedUserPrincipal =
+                    $null
+
+                $verificationMessage =
+                    'Verification was not attempted.'
+
+                if (-not $SkipVerification) {
+                    if ($VerificationDelaySeconds -gt 0) {
+                        Start-Sleep `
+                            -Seconds $VerificationDelaySeconds
+                    }
+
+                    try {
+                        $verification =
+                            Get-IntunePrimaryUser `
+                                -ManagedDeviceId $managedDeviceId
+
+                        $verifiedUserId =
+                            [string]$verification.AssignedUserId
+
+                        $verifiedUserPrincipal =
+                            [string]$verification.AssignedUserPrincipal
+
+                        if (
+                            [string]::IsNullOrWhiteSpace(
+                                $verifiedUserId
+                            )
+                        ) {
+                            $verificationStatus =
+                                'Pending'
+
+                            $verificationMessage =
+                                (
+                                    'Intune did not yet return an ' +
+                                    'assigned primary user.'
+                                )
+                        }
+                        elseif (
+                            $verifiedUserId -eq
+                            $recommendedUserId
+                        ) {
+                            $verificationStatus =
+                                'Verified'
+
+                            $verificationMessage =
+                                (
+                                    'The assigned Intune primary user ' +
+                                    'matches the recommendation.'
+                                )
+                        }
+                        else {
+                            $verificationStatus =
+                                'Mismatch'
+
+                            $verificationMessage =
+                                (
+                                    'Intune returned a different primary ' +
+                                    'user than expected.'
+                                )
+                        }
+                    }
+                    catch {
+                        $verificationStatus =
+                            'VerificationFailed'
+
+                        $verificationMessage =
+                            $_.Exception.Message
+                    }
+                }
 
                 $results.Add(
                     [pscustomobject]@{
@@ -284,13 +448,28 @@ function Invoke-PrimaryUserRemediation {
                             'Completed'
 
                         Message =
-                            'Intune primary user assignment completed.'
+                            (
+                                'Intune primary user assignment ' +
+                                'request completed.'
+                            )
 
                         GraphRequest =
                             $graphRequest
 
                         ErrorMessage =
                             $null
+
+                        VerificationStatus =
+                            $verificationStatus
+
+                        VerifiedUserId =
+                            $verifiedUserId
+
+                        VerifiedUserPrincipal =
+                            $verifiedUserPrincipal
+
+                        VerificationMessage =
+                            $verificationMessage
                     }
                 )
             }
@@ -326,6 +505,21 @@ function Invoke-PrimaryUserRemediation {
 
                         ErrorMessage =
                             $_.Exception.Message
+
+                        VerificationStatus =
+                            'NotAttempted'
+
+                        VerifiedUserId =
+                            $null
+
+                        VerifiedUserPrincipal =
+                            $null
+
+                        VerificationMessage =
+                            (
+                                'Verification was not attempted because ' +
+                                'remediation failed.'
+                            )
                     }
                 )
             }

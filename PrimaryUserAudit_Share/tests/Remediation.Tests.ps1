@@ -300,7 +300,8 @@ Describe 'Invoke-PrimaryUserRemediation' {
                 $result =
                     $recommendation |
                     Invoke-PrimaryUserRemediation `
-                        -Confirm:$false
+                        -Confirm:$false `
+                        -SkipVerification
 
                 $result.RemediationStatus |
                     Should -Be 'Completed'
@@ -360,7 +361,8 @@ Describe 'Invoke-PrimaryUserRemediation' {
                 $result =
                     $recommendation |
                     Invoke-PrimaryUserRemediation `
-                        -Confirm:$false
+                        -Confirm:$false `
+                        -SkipVerification
 
                 $result.RemediationStatus |
                     Should -Be 'Failed'
@@ -464,3 +466,4 @@ AfterAll {
         -Force `
         -ErrorAction SilentlyContinue
 }
+

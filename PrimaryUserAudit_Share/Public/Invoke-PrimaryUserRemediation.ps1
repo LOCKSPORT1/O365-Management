@@ -1,13 +1,19 @@
 function Invoke-PrimaryUserRemediation {
     <#
     .SYNOPSIS
-        Applies and verifies approved Intune primary-user recommendations.
+        Applies, verifies, and records rollback data for approved Intune
+        primary-user recommendations.
 
     .DESCRIPTION
         Processes primary-user audit recommendation records.
 
         Assign and Change recommendations are eligible for remediation by
         default. Other actions are returned as skipped.
+
+        Before an approved change is made, the function queries Intune for the
+        current primary-user assignment. That previous assignment is stored in
+        a rollback record. After all pipeline records are processed, the
+        rollback records are exported to one JSON file.
 
         The function supports PowerShell ShouldProcess, including WhatIf and
         Confirm. After a successful Microsoft Graph assignment request, the
@@ -25,25 +31,32 @@ function Invoke-PrimaryUserRemediation {
     .PARAMETER SkipVerification
         Completes remediation without querying Intune afterward.
 
+    .PARAMETER RollbackOutputDirectory
+        Directory where the rollback JSON file will be created.
+
+    .PARAMETER RollbackOutputPath
+        Optional complete path for the rollback JSON file. When supplied, it
+        overrides RollbackOutputDirectory.
+
+    .PARAMETER NoRollbackExport
+        Disables rollback capture and export. Use this only when intentionally
+        applying remediation without generating a rollback file.
+
     .EXAMPLE
         $Recommendations |
             Invoke-PrimaryUserRemediation -WhatIf
 
     .EXAMPLE
         $Recommendations |
-            Invoke-PrimaryUserRemediation -Confirm:$false
+            Invoke-PrimaryUserRemediation `
+                -Confirm:$false `
+                -RollbackOutputDirectory '.\Rollback'
 
     .EXAMPLE
         $Recommendations |
             Invoke-PrimaryUserRemediation `
                 -Confirm:$false `
-                -VerificationDelaySeconds 10
-
-    .EXAMPLE
-        $Recommendations |
-            Invoke-PrimaryUserRemediation `
-                -Confirm:$false `
-                -SkipVerification
+                -RollbackOutputPath '.\Rollback\change-set.json'
     #>
 
     [CmdletBinding(
@@ -73,13 +86,28 @@ function Invoke-PrimaryUserRemediation {
         [int]$VerificationDelaySeconds = 5,
 
         [Parameter()]
-        [switch]$SkipVerification
+        [switch]$SkipVerification,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string]$RollbackOutputDirectory =
+            (Join-Path $PWD 'Rollback'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string]$RollbackOutputPath,
+
+        [Parameter()]
+        [switch]$NoRollbackExport
     )
 
     begin {
         Set-StrictMode -Version Latest
 
         $results =
+            [System.Collections.Generic.List[object]]::new()
+
+        $rollbackRecords =
             [System.Collections.Generic.List[object]]::new()
     }
 
@@ -168,9 +196,7 @@ function Invoke-PrimaryUserRemediation {
                     $deviceName
                 )
             ) {
-                throw (
-                    'Each recommendation must contain a DeviceName.'
-                )
+                throw 'Each recommendation must contain a DeviceName.'
             }
 
             if ($action -notin $AllowedAction) {
@@ -217,6 +243,15 @@ function Invoke-PrimaryUserRemediation {
 
                         VerificationMessage =
                             'Verification was not attempted.'
+
+                        RollbackExportStatus =
+                            'NotCreated'
+
+                        RollbackOutputPath =
+                            $null
+
+                        RollbackExportError =
+                            $null
                     }
                 )
 
@@ -334,10 +369,103 @@ function Invoke-PrimaryUserRemediation {
 
                         VerificationMessage =
                             'Verification was not attempted.'
+
+                        RollbackExportStatus =
+                            'NotCreated'
+
+                        RollbackOutputPath =
+                            $null
+
+                        RollbackExportError =
+                            $null
                     }
                 )
 
                 continue
+            }
+
+            $previousUserId =
+                ''
+
+            $previousUserPrincipal =
+                ''
+
+            if (-not $NoRollbackExport) {
+                try {
+                    $previousAssignment =
+                        Get-IntunePrimaryUser `
+                            -ManagedDeviceId $managedDeviceId
+
+                    $previousUserId =
+                        [string]$previousAssignment.AssignedUserId
+
+                    $previousUserPrincipal =
+                        [string]$previousAssignment.AssignedUserPrincipal
+                }
+                catch {
+                    $results.Add(
+                        [pscustomobject]@{
+                            DeviceName =
+                                $deviceName
+
+                            ManagedDeviceId =
+                                $managedDeviceId
+
+                            CurrentUserPrincipal =
+                                $currentUserPrincipal
+
+                            RecommendedUserPrincipal =
+                                $recommendedUserPrincipal
+
+                            RecommendedUserId =
+                                $recommendedUserId
+
+                            RecommendedAction =
+                                $action
+
+                            RemediationStatus =
+                                'Failed'
+
+                            Message =
+                                (
+                                    'Rollback state could not be captured. ' +
+                                    'No change was made.'
+                                )
+
+                            GraphRequest =
+                                $null
+
+                            ErrorMessage =
+                                $_.Exception.Message
+
+                            VerificationStatus =
+                                'NotAttempted'
+
+                            VerifiedUserId =
+                                $null
+
+                            VerifiedUserPrincipal =
+                                $null
+
+                            VerificationMessage =
+                                (
+                                    'Verification was not attempted because ' +
+                                    'remediation did not start.'
+                                )
+
+                            RollbackExportStatus =
+                                'NotCreated'
+
+                            RollbackOutputPath =
+                                $null
+
+                            RollbackExportError =
+                                $_.Exception.Message
+                        }
+                    )
+
+                    continue
+                }
             }
 
             try {
@@ -424,7 +552,7 @@ function Invoke-PrimaryUserRemediation {
                     }
                 }
 
-                $results.Add(
+                $result =
                     [pscustomobject]@{
                         DeviceName =
                             $deviceName
@@ -470,11 +598,62 @@ function Invoke-PrimaryUserRemediation {
 
                         VerificationMessage =
                             $verificationMessage
+
+                        RollbackExportStatus =
+                            if ($NoRollbackExport) {
+                                'Disabled'
+                            }
+                            else {
+                                'Pending'
+                            }
+
+                        RollbackOutputPath =
+                            $null
+
+                        RollbackExportError =
+                            $null
                     }
-                )
+
+                $results.Add($result)
+
+                if (-not $NoRollbackExport) {
+                    $rollbackRecords.Add(
+                        [pscustomobject]@{
+                            DeviceName =
+                                $deviceName
+
+                            ManagedDeviceId =
+                                $managedDeviceId
+
+                            PreviousUserId =
+                                $previousUserId
+
+                            PreviousUserPrincipal =
+                                $previousUserPrincipal
+
+                            NewUserId =
+                                $recommendedUserId
+
+                            NewUserPrincipal =
+                                $recommendedUserPrincipal
+
+                            RecommendedAction =
+                                $action
+
+                            RemediationStatus =
+                                'Completed'
+
+                            VerificationStatus =
+                                $verificationStatus
+
+                            Timestamp =
+                                [datetimeoffset]::Now
+                        }
+                    )
+                }
             }
             catch {
-                $results.Add(
+                $result =
                     [pscustomobject]@{
                         DeviceName =
                             $deviceName
@@ -520,13 +699,120 @@ function Invoke-PrimaryUserRemediation {
                                 'Verification was not attempted because ' +
                                 'remediation failed.'
                             )
+
+                        RollbackExportStatus =
+                            if ($NoRollbackExport) {
+                                'Disabled'
+                            }
+                            else {
+                                'Pending'
+                            }
+
+                        RollbackOutputPath =
+                            $null
+
+                        RollbackExportError =
+                            $null
                     }
-                )
+
+                $results.Add($result)
+
+                if (-not $NoRollbackExport) {
+                    $rollbackRecords.Add(
+                        [pscustomobject]@{
+                            DeviceName =
+                                $deviceName
+
+                            ManagedDeviceId =
+                                $managedDeviceId
+
+                            PreviousUserId =
+                                $previousUserId
+
+                            PreviousUserPrincipal =
+                                $previousUserPrincipal
+
+                            NewUserId =
+                                $recommendedUserId
+
+                            NewUserPrincipal =
+                                $recommendedUserPrincipal
+
+                            RecommendedAction =
+                                $action
+
+                            RemediationStatus =
+                                'Failed'
+
+                            VerificationStatus =
+                                'NotAttempted'
+
+                            Timestamp =
+                                [datetimeoffset]::Now
+                        }
+                    )
+                }
             }
         }
     }
 
     end {
+        if (
+            -not $NoRollbackExport -and
+            $rollbackRecords.Count -gt 0
+        ) {
+            try {
+                $exportParameters = @{
+                    Record =
+                        @($rollbackRecords)
+                }
+
+                if (
+                    -not [string]::IsNullOrWhiteSpace(
+                        $RollbackOutputPath
+                    )
+                ) {
+                    $exportParameters.OutputPath =
+                        $RollbackOutputPath
+                }
+                else {
+                    $exportParameters.OutputDirectory =
+                        $RollbackOutputDirectory
+                }
+
+                $rollbackExport =
+                    Export-PrimaryUserRollbackRecord `
+                        @exportParameters
+
+                foreach ($result in $results) {
+                    if (
+                        $result.RollbackExportStatus -eq
+                        'Pending'
+                    ) {
+                        $result.RollbackExportStatus =
+                            'Completed'
+
+                        $result.RollbackOutputPath =
+                            $rollbackExport.OutputPath
+                    }
+                }
+            }
+            catch {
+                foreach ($result in $results) {
+                    if (
+                        $result.RollbackExportStatus -eq
+                        'Pending'
+                    ) {
+                        $result.RollbackExportStatus =
+                            'Failed'
+
+                        $result.RollbackExportError =
+                            $_.Exception.Message
+                    }
+                }
+            }
+        }
+
         return $results
     }
 }

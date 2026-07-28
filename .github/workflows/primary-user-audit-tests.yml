@@ -1,0 +1,72 @@
+name: Primary User Audit Tests
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+    paths:
+      - "PrimaryUserAudit_Share/**"
+      - ".github/workflows/primary-user-audit-tests.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "PrimaryUserAudit_Share/**"
+      - ".github/workflows/primary-user-audit-tests.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pester:
+    name: Run Pester Tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+          Install-Module `
+            -Name Pester `
+            -RequiredVersion 6.0.1 `
+            -Scope CurrentUser `
+            -Force `
+            -AllowClobber
+
+          Import-Module Pester -RequiredVersion 6.0.1 -Force
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $Configuration = New-PesterConfiguration
+
+          $Configuration.Run.Path = "./PrimaryUserAudit_Share/tests"
+          $Configuration.Run.PassThru = $true
+          $Configuration.Output.Verbosity = "Detailed"
+
+          $Configuration.TestResult.Enabled = $true
+          $Configuration.TestResult.OutputPath = "TestResults.xml"
+          $Configuration.TestResult.OutputFormat = "NUnitXml"
+
+          $Result = Invoke-Pester -Configuration $Configuration
+
+          if ($Result.FailedCount -gt 0) {
+              throw "$($Result.FailedCount) Pester test(s) failed."
+          }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pester-test-results
+          path: TestResults.xml
+          if-no-files-found: warn

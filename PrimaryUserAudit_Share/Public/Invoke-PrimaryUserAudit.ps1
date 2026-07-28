@@ -107,6 +107,7 @@ function Invoke-PrimaryUserAudit {
         'Get-DeviceSignInEvidence'
         'Get-PrimaryUserRecommendation'
         'Export-PrimaryUserAuditReport'
+        'Export-PrimaryUserAuditHtml'
     )
 
     $missingFunctions = @(
@@ -230,7 +231,24 @@ function Invoke-PrimaryUserAudit {
             -Recommendations $recommendations `
             -OutputFolder $OutputFolder `
             -PassThru
+# -------------------------------------------------------
+# Generate interactive HTML dashboard
+# -------------------------------------------------------
+$dashboardTimeStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
+$dashboardPath = [System.IO.Path]::GetFullPath(
+    (Join-Path `
+        $OutputFolder `
+        "PrimaryUserAudit_Dashboard_$dashboardTimeStamp.html")
+)
+
+Export-PrimaryUserAuditHtml `
+    -InputObject $recommendations `
+    -OutputPath $dashboardPath |
+    Out-Null
+
+    # -------------------------------------------------------
+    
         $auditEndTime = Get-Date
         $duration = $auditEndTime - $auditStartTime
 
@@ -248,6 +266,13 @@ function Invoke-PrimaryUserAudit {
         Write-Host "Manual reviews:        $($reportSummary.ReviewCount)"
         Write-Host "No changes required:   $($reportSummary.NoChangeCount)"
         Write-Host "No evidence:           $($reportSummary.NoEvidenceCount)"
+        
+        Write-Host ""
+Write-Host "Full report:      $($reportSummary.FullReportPath)"
+Write-Host "Action report:    $($reportSummary.ActionReportPath)"
+Write-Host "Summary report:   $($reportSummary.SummaryReportPath)"
+Write-Host "HTML dashboard:   $dashboardPath"
+        
         Write-Host ''
         Write-Host 'No Intune assignments were modified.'
         Write-Host ''

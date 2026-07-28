@@ -54,6 +54,7 @@ function Get-PrimaryUserRecommendation {
         [object[]]$Devices,
 
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [ValidateNotNull()]
         [object[]]$SignInEvidence,
 

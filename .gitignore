@@ -1,3 +1,11 @@
-
 # Generated Primary User Audit reports
 PrimaryUserAudit_Share/Reports/
+
+# PowerShell logs
+*.log
+
+# Temporary files
+*.tmp
+
+# VS Code
+.vscode/

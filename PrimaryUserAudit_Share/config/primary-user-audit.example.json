@@ -1,0 +1,47 @@
+﻿{
+  "General": {
+    "LookbackDays": 14,
+    "MinimumSignIns": 5,
+    "DominancePercent": 60,
+    "OutputDirectory": "./Reports",
+    "LogDirectory": "./Logs"
+  },
+  "Authentication": {
+    "Mode": "Interactive",
+    "TenantId": "",
+    "ClientId": "",
+    "CertificateThumbprint": ""
+  },
+  "Exclusions": {
+    "UserPatterns": [
+      "admin*",
+      "*-admin@*",
+      "svc-*",
+      "service-*"
+    ],
+    "DevicePatterns": [
+      "KIOSK*",
+      "SHARED*",
+      "CONFROOM*",
+      "TRAINING*"
+    ]
+  },
+  "CandidateValidation": {
+    "RequireEnabledAccount": true,
+    "ExcludeGuests": true,
+    "ExcludePrivilegedUsers": true,
+    "RequireIntuneLicense": false
+  },
+  "Remediation": {
+    "Enabled": false,
+    "RequireConfirmation": true,
+    "AllowForce": false,
+    "MaximumChangesPerRun": 25
+  },
+  "Logging": {
+    "EnableTranscript": true,
+    "EnableJsonLog": true,
+    "EnableCsvReport": true,
+    "LogLevel": "Information"
+  }
+}

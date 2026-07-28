@@ -1,0 +1,34 @@
+{
+  "Toolkit": {
+    "Name": "O365 Management Toolkit",
+    "Environment": "Development",
+    "Version": "0.1.0"
+  },
+  "Tenant": {
+    "TenantId": "",
+    "PrimaryDomain": "contoso.com",
+    "OrganizationName": "Contoso"
+  },
+  "Paths": {
+    "LogDirectory": "../logs",
+    "ReportDirectory": "../reports",
+    "RollbackDirectory": "../reports/rollback"
+  },
+  "Graph": {
+    "CloudEnvironment": "Global",
+    "ApiVersion": "v1.0",
+    "RetryCount": 5,
+    "RetryDelaySeconds": 3,
+    "Scopes": [
+      "User.Read.All",
+      "Directory.Read.All",
+      "DeviceManagementManagedDevices.ReadWrite.All"
+    ]
+  },
+  "Logging": {
+    "Enabled": true,
+    "MinimumLevel": "Information",
+    "WriteConsole": true,
+    "WriteFile": true
+  }
+}

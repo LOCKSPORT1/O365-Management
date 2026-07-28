@@ -19,7 +19,8 @@
     )
 
     FunctionsToExport = @(
-        'Invoke-PrimaryUserAudit'
+        'Invoke-PrimaryUserAudit',
+        'Invoke-PrimaryUserRemediation'
     )
 
     CmdletsToExport   = @()

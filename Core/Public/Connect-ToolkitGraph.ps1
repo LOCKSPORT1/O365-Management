@@ -98,18 +98,18 @@ function Connect-ToolkitGraph {
     $existingContext = $null
 
     try {
-    $existingContext = Get-MgContext -ErrorAction Stop
+        $existingContext = Get-MgContext -ErrorAction Stop
     }
     catch {
-    if (
-        $_.FullyQualifiedErrorId -match 'SessionNotInitialized' -or
-        $_.Exception.Message -match 'SessionNotInitialized'
-    ) {
-        $existingContext = $null
-    }
-    else {
-        throw
-    }
+        if (
+            $_.FullyQualifiedErrorId -match 'SessionNotInitialized' -or
+            $_.Exception.Message -match 'SessionNotInitialized'
+        ) {
+            $existingContext = $null
+        }
+        else {
+            throw
+        }
     }
 
     if ($existingContext) {
@@ -152,6 +152,7 @@ function Connect-ToolkitGraph {
     if ($UseDeviceCode) {
         $connectParameters.UseDeviceCode = $true
     }
+
 
     Write-ToolkitLog `
         -Config $Config `

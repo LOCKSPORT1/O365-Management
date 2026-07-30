@@ -3,7 +3,7 @@
         'O365Toolkit.Core.psm1'
 
     ModuleVersion =
-        '0.3.0'
+        '0.4.0'
 
     GUID =
         '8c9f60ad-0677-4af0-bd0d-f73881406442'
@@ -29,6 +29,7 @@
     'Connect-ToolkitGraph'
     'Test-ToolkitGraphConnection'
     'Disconnect-ToolkitGraph'
+    'Invoke-ToolkitGraphRequest'
         )
 
     CmdletsToExport =

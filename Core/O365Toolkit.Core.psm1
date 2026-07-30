@@ -1,35 +1,36 @@
 Set-StrictMode -Version Latest
 
-$PrivateFunctions =
-    Get-ChildItem `
-        -Path (Join-Path $PSScriptRoot 'Private') `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue
+$privatePath = Join-Path $PSScriptRoot 'Private'
+$publicPath  = Join-Path $PSScriptRoot 'Public'
 
-$PublicFunctions =
-    Get-ChildItem `
-        -Path (Join-Path $PSScriptRoot 'Public') `
-        -Filter '*.ps1' `
-        -File `
-        -ErrorAction SilentlyContinue
+$privateFiles = Get-ChildItem `
+    -Path $privatePath `
+    -Filter '*.ps1' `
+    -File `
+    -ErrorAction SilentlyContinue |
+    Sort-Object Name
 
-foreach ($FunctionFile in @(
-    $PrivateFunctions
-    $PublicFunctions
-)) {
+foreach ($file in $privateFiles) {
     try {
-        . $FunctionFile.FullName
+        . $file.FullName
     }
     catch {
-        throw (
-            "Failed to load function file '$($FunctionFile.FullName)': " +
-            $_.Exception.Message
-        )
+        throw "Failed to load private function file '$($file.FullName)': $($_.Exception.Message)"
     }
 }
 
-if ($PublicFunctions) {
-    Export-ModuleMember `
-        -Function $PublicFunctions.BaseName
+$publicFiles = Get-ChildItem `
+    -Path $publicPath `
+    -Filter '*.ps1' `
+    -File `
+    -ErrorAction SilentlyContinue |
+    Sort-Object Name
+
+foreach ($file in $publicFiles) {
+    try {
+        . $file.FullName
+    }
+    catch {
+        throw "Failed to load public function file '$($file.FullName)': $($_.Exception.Message)"
+    }
 }

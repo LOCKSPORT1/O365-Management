@@ -3,7 +3,7 @@
         'O365Toolkit.Core.psm1'
 
     ModuleVersion =
-        '0.2.0'
+        '0.3.0'
 
     GUID =
         '8c9f60ad-0677-4af0-bd0d-f73881406442'
@@ -23,10 +23,12 @@
     PowerShellVersion =
         '7.2'
 
-    FunctionsToExport =
-        @(
-            'Read-ToolkitConfig'
-            'Write-ToolkitLog'
+    FunctionsToExport = @(
+    'Read-ToolkitConfig'
+    'Write-ToolkitLog'
+    'Connect-ToolkitGraph'
+    'Test-ToolkitGraphConnection'
+    'Disconnect-ToolkitGraph'
         )
 
     CmdletsToExport =

@@ -36,8 +36,23 @@ function Invoke-ToolkitGraphRequest {
         [int]$MaximumRetryDelaySeconds = 60,
 
         [Parameter()]
+        [switch]$AllPages,
+
+        [Parameter()]
+        [ValidateRange(0, 10000)]
+        [int]$PageLimit = 0,
+
+        [Parameter()]
         [switch]$PassThru
     )
+
+    if ($AllPages -and $Method -ne 'GET') {
+        throw 'The AllPages parameter can only be used with GET requests.'
+    }
+
+    if ($PageLimit -gt 0 -and -not $AllPages) {
+        throw 'PageLimit can only be used when AllPages is specified.'
+    }
 
     $connection = Test-ToolkitGraphConnection `
         -Config $Config `
@@ -59,29 +74,55 @@ function Invoke-ToolkitGraphRequest {
         -Level Information `
         -Message (
             "Starting Microsoft Graph request: $Method $Uri; " +
-            "Maximum attempts: $MaxAttempts."
+            "Maximum attempts: $MaxAttempts; " +
+            "All pages: $([bool]$AllPages); " +
+            "Page limit: $PageLimit."
         )
 
     try {
-        $requestParameters = @{
-    Method                   = $Method
-    Uri                      = $Uri
-    MaxAttempts              = $MaxAttempts
-    MaximumRetryDelaySeconds = $MaximumRetryDelaySeconds
-}
+        if ($AllPages) {
+            $pagedParameters = @{
+                Uri                      = $Uri
+                MaxAttempts              = $MaxAttempts
+                MaximumRetryDelaySeconds = $MaximumRetryDelaySeconds
+                PageLimit                = $PageLimit
+            }
 
-if ($PSBoundParameters.ContainsKey('Body')) {
-    $requestParameters.Body = $Body
-}
+            if (
+                $PSBoundParameters.ContainsKey('Headers') -and
+                $null -ne $Headers
+            ) {
+                $pagedParameters.Headers = $Headers
+            }
 
-if (
-    $PSBoundParameters.ContainsKey('Headers') -and
-    $null -ne $Headers
-) {
-    $requestParameters.Headers = $Headers
-}
+            $pagedResult = Invoke-ToolkitGraphPagedRequest `
+                @pagedParameters
 
-$response = Invoke-ToolkitGraphRequestPipeline @requestParameters
+            $response = $pagedResult.Records
+        }
+        else {
+            $requestParameters = @{
+                Method                   = $Method
+                Uri                      = $Uri
+                MaxAttempts              = $MaxAttempts
+                MaximumRetryDelaySeconds = $MaximumRetryDelaySeconds
+            }
+
+            if ($PSBoundParameters.ContainsKey('Body')) {
+                $requestParameters.Body = $Body
+            }
+
+            if (
+                $PSBoundParameters.ContainsKey('Headers') -and
+                $null -ne $Headers
+            ) {
+                $requestParameters.Headers = $Headers
+            }
+
+            $response = Invoke-ToolkitGraphRequestPipeline `
+                @requestParameters
+        }
+
         $stopwatch.Stop()
         $completedAt = [datetime]::Now
 
@@ -96,17 +137,27 @@ $response = Invoke-ToolkitGraphRequestPipeline @requestParameters
             )
 
         if ($PassThru) {
-            return [pscustomobject]@{
-                Success      = $true
-                Method       = $Method
-                Uri          = $Uri
-                StartedAt    = $startedAt
-                CompletedAt  = $completedAt
-                Duration     = $stopwatch.Elapsed
-                DurationMs   = $stopwatch.ElapsedMilliseconds
-                MaxAttempts  = $MaxAttempts
-                Data         = $response
+            $result = [ordered]@{
+                Success     = $true
+                Method      = $Method
+                Uri         = $Uri
+                StartedAt   = $startedAt
+                CompletedAt = $completedAt
+                Duration    = $stopwatch.Elapsed
+                DurationMs  = $stopwatch.ElapsedMilliseconds
+                MaxAttempts = $MaxAttempts
+                AllPages    = [bool]$AllPages
+                Data        = $response
             }
+
+            if ($AllPages) {
+                $result.PageCount = $pagedResult.PageCount
+                $result.RecordCount = $pagedResult.RecordCount
+                $result.IsTruncated = $pagedResult.IsTruncated
+                $result.PageLimit = $pagedResult.PageLimit
+            }
+
+            return [pscustomobject]$result
         }
 
         return $response

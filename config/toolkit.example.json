@@ -2,7 +2,7 @@
   "Toolkit": {
     "Name": "O365 Management Toolkit",
     "Environment": "Development",
-    "Version": "0.1.0"
+    "Version": "0.2.0"
   },
   "Tenant": {
     "TenantId": "",
@@ -29,6 +29,9 @@
     "Enabled": true,
     "MinimumLevel": "Information",
     "WriteConsole": true,
-    "WriteFile": true
+    "WriteFile": true,
+    "DailyLogFiles": true,
+    "TimestampFormat": "yyyy-MM-dd HH:mm:ss",
+    "IncludeCaller": true
   }
 }

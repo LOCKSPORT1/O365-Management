@@ -35,11 +35,11 @@ $publicFiles = @(
 )
 
 if ($privateFiles.Count -eq 0) {
-    throw "No private PowerShell function files were found in: $privatePath"
+    throw "No private function files were found in: $privatePath"
 }
 
 if ($publicFiles.Count -eq 0) {
-    throw "No public PowerShell function files were found in: $publicPath"
+    throw "No public function files were found in: $publicPath"
 }
 
 foreach ($file in $privateFiles) {
@@ -68,57 +68,5 @@ foreach ($file in $publicFiles) {
     }
 }
 
-$detectedPublicFunctions = @(
-    foreach ($file in $publicFiles) {
-        $tokens = $null
-        $parseErrors = $null
-
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
-            $file.FullName,
-            [ref]$tokens,
-            [ref]$parseErrors
-        )
-
-        if (@($parseErrors).Count -gt 0) {
-            $messages = @(
-                $parseErrors |
-                ForEach-Object {
-                    $_.Message
-                }
-            ) -join '; '
-
-            throw (
-                "Failed to parse public function file '{0}': {1}" -f
-                $file.FullName,
-                $messages
-            )
-        }
-
-        $functionDefinitions = $ast.FindAll(
-            {
-                param($node)
-
-                $node -is [
-                    System.Management.Automation.Language.FunctionDefinitionAst
-                ]
-            },
-            $false
-        )
-
-        foreach ($functionDefinition in $functionDefinitions) {
-            $functionDefinition.Name
-        }
-    }
-)
-
-$publicFunctionNames = @(
-    $detectedPublicFunctions |
-        Sort-Object -Unique
-)
-
-if ($publicFunctionNames.Count -eq 0) {
-    throw 'No public functions were detected for export.'
-}
-
 Export-ModuleMember `
-    -Function $publicFunctionNames
+    -Function 'New-ToolkitNotebookExport'

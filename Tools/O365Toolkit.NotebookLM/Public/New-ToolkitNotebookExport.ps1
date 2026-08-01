@@ -10,8 +10,8 @@ function New-ToolkitNotebookExport {
         [ValidateNotNullOrEmpty()]
         [string]$OutputRoot = (
             Join-Path `
-                $env:USERPROFILE `
-                'Documents\Private-O365Toolkit-NotebookLM'
+                -Path $env:USERPROFILE `
+                -ChildPath 'Documents\Private-O365Toolkit-NotebookLM'
         ),
 
         [Parameter(Mandatory)]
@@ -59,7 +59,7 @@ function New-ToolkitNotebookExport {
     if (-not $snapshot.IsClean) {
         throw (
             'The repository has uncommitted changes. ' +
-            'Commit or stash them before creating a final export.' +
+            'Commit or stash them before creating an export.' +
             [environment]::NewLine +
             ($snapshot.WorkingTreeStatus -join [environment]::NewLine)
         )
@@ -93,6 +93,7 @@ function New-ToolkitNotebookExport {
         Out-Null
 
     $testSummary = 'Tests were not run during this export.'
+    $testResult = $null
 
     if ($RunTests) {
         $testPaths = @()
@@ -122,20 +123,20 @@ function New-ToolkitNotebookExport {
             }
         }
 
-        $notebookTests = Join-Path `
-            -Path $resolvedRepositoryPath `
-            -ChildPath 'Tools\O365Toolkit.NotebookLM\Tests'
-
-        if (Test-Path -LiteralPath $notebookTests) {
-            $testPaths += $notebookTests
-        }
+        # NotebookLM self-tests are deliberately excluded here.
+        # They are run as a separate pre-export quality gate.
+        # Running exporter tests recursively from inside the exporter
+        # can alter the active module scope and create a false failure.
 
         $testPaths = @(
             $testPaths |
             Select-Object -Unique
         )
 
-        if ($testPaths.Count -gt 0) {
+        if ($testPaths.Count -eq 0) {
+            $testSummary = 'No Core or service-module test folders were found.'
+        }
+        else {
             $testResult = Invoke-Pester `
                 -Path $testPaths `
                 -Output None `
@@ -146,12 +147,20 @@ Total: $($testResult.TotalCount)
 Passed: $($testResult.PassedCount)
 Failed: $($testResult.FailedCount)
 Skipped: $($testResult.SkippedCount)
+Result: $($testResult.Result)
 Duration: $($testResult.Duration)
 "@
 
-            if ($testResult.FailedCount -gt 0) {
+            if (
+                $testResult.Result -ne 'Passed' -or
+                $testResult.FailedCount -gt 0 -or
+                $testResult.TotalCount -eq 0
+            ) {
                 throw (
-                    "Pester reported $($testResult.FailedCount) failing tests."
+                    'Core or service-module tests failed. ' +
+                    "Result: $($testResult.Result); " +
+                    "Total: $($testResult.TotalCount); " +
+                    "Failed: $($testResult.FailedCount)."
                 )
             }
         }
@@ -181,6 +190,7 @@ Duration: $($testResult.Duration)
         -OutputPath $functionReferencePath
 
     $sourceSnapshotResult = $null
+    $sourceSnapshotPath = $null
 
     if ($IncludeSourceSnapshot) {
         $sourceSnapshotPath = Join-Path `
@@ -197,10 +207,19 @@ Duration: $($testResult.Duration)
         -ChildPath "$exportName.zip"
 
     Compress-Archive `
-        -Path (Join-Path $workingPath '*') `
+        -Path (
+            Join-Path `
+                -Path $workingPath `
+                -ChildPath '*'
+        ) `
         -DestinationPath $zipPath `
         -CompressionLevel Optimal `
-        -Force
+        -Force `
+        -ErrorAction Stop
+
+    if (-not (Test-Path -LiteralPath $zipPath)) {
+        throw "The expected ZIP file was not created: $zipPath"
+    }
 
     $markerWriteResult = Set-ToolkitNotebookMarker `
         -MarkerPath $markerPath `
@@ -211,39 +230,52 @@ Duration: $($testResult.Duration)
         -PreviousBaselineCommit $marker.BaselineCommit `
         -NextFeature $NextFeature
 
-    $sourceSnapshotFileCount = if (
-        $null -ne $sourceSnapshotResult
-    ) {
-        $sourceSnapshotResult.FileCount
+    $sourceSnapshotFileCount = 0
+
+    if ($null -ne $sourceSnapshotResult) {
+        $sourceSnapshotFileCount = $sourceSnapshotResult.FileCount
     }
-    else {
-        0
+
+    $testsPassed = $null
+    $testsFailed = $null
+    $testsTotal = $null
+
+    if ($null -ne $testResult) {
+        $testsPassed = $testResult.PassedCount
+        $testsFailed = $testResult.FailedCount
+        $testsTotal = $testResult.TotalCount
     }
 
     return [pscustomobject]@{
-        Success                 = $true
-        ExportVersion           = $ExportVersion
-        RepositoryPath          = $resolvedRepositoryPath
-        OutputRoot              = $OutputRoot
-        WorkingPath             = $workingPath
-        ZipPath                 = $zipPath
-        MarkerPath              = $markerPath
-        BaselineCommit          = $snapshot.CurrentCommit
-        PreviousBaselineCommit  = $marker.BaselineCommit
-        IncrementalRange        = $snapshot.IncrementalRange
-        DocumentCount           = $documentResult.FileCount + 2
-        ProjectIndexPath        = $projectIndexResult.OutputPath
-        FunctionReferencePath   = $functionReferenceResult.OutputPath
-        InventoryFileCount      = $inventory.FileCount
-        FunctionCount           = $functionReferenceResult.FunctionCount
-        PublicFunctionCount     = $functionReferenceResult.PublicFunctionCount
-        PrivateFunctionCount    = $functionReferenceResult.PrivateFunctionCount
-        TestFileCount           = $projectIndexResult.TestFileCount
-        DocumentationCount      = $projectIndexResult.DocumentationCount
-        RunbookCount            = $projectIndexResult.RunbookCount
-        SourceSnapshotIncluded  = [bool]$IncludeSourceSnapshot
-        SourceSnapshotFileCount = $sourceSnapshotFileCount
-        TestsRun                = [bool]$RunTests
-        MarkerUpdated           = $markerWriteResult.Success
+        Success                  = $true
+        ExportVersion            = $ExportVersion
+        RepositoryPath           = $resolvedRepositoryPath
+        OutputRoot               = $OutputRoot
+        WorkingPath              = $workingPath
+        DocumentPath             = $documentPath
+        ZipPath                  = $zipPath
+        MarkerPath               = $markerPath
+        BaselineCommit           = $snapshot.CurrentCommit
+        PreviousBaselineCommit   = $marker.BaselineCommit
+        IncrementalRange         = $snapshot.IncrementalRange
+        DocumentCount            = $documentResult.FileCount + 2
+        ProjectIndexPath         = $projectIndexResult.OutputPath
+        FunctionReferencePath    = $functionReferenceResult.OutputPath
+        InventoryFileCount       = $inventory.FileCount
+        FunctionCount            = $functionReferenceResult.FunctionCount
+        PublicFunctionCount      = $functionReferenceResult.PublicFunctionCount
+        PrivateFunctionCount     = $functionReferenceResult.PrivateFunctionCount
+        TestFileCount            = $projectIndexResult.TestFileCount
+        DocumentationCount       = $projectIndexResult.DocumentationCount
+        RunbookCount             = $projectIndexResult.RunbookCount
+        SourceSnapshotIncluded   = [bool]$IncludeSourceSnapshot
+        SourceSnapshotPath       = $sourceSnapshotPath
+        SourceSnapshotFileCount  = $sourceSnapshotFileCount
+        TestsRun                 = [bool]$RunTests
+        TestsTotal               = $testsTotal
+        TestsPassed              = $testsPassed
+        TestsFailed              = $testsFailed
+        MarkerUpdated            = $markerWriteResult.Success
+        GeneratedAt              = Get-Date
     }
 }

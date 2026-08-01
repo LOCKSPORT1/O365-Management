@@ -1,26 +1,27 @@
-$moduleManifestPath = Join-Path `
-    -Path (
-        Split-Path `
-            -Path $PSScriptRoot `
-            -Parent
-    ) `
-    -ChildPath 'O365Toolkit.NotebookLM.psd1'
-
 $moduleManifestPath = (
     Resolve-Path `
-        -LiteralPath $moduleManifestPath `
+        -LiteralPath (
+            Join-Path `
+                -Path (
+                    Split-Path `
+                        -Path $PSCommandPath `
+                        -Parent
+                ) `
+                -ChildPath '..\O365Toolkit.NotebookLM.psd1'
+        ) `
         -ErrorAction Stop
 ).Path
 
-Get-Module O365Toolkit.NotebookLM -All |
-    Remove-Module `
-        -Force `
-        -ErrorAction SilentlyContinue
+$loadedNotebookModule = Get-Module `
+    -Name O365Toolkit.NotebookLM `
+    -ErrorAction SilentlyContinue
 
-Import-Module `
-    -Name $moduleManifestPath `
-    -Force `
-    -ErrorAction Stop
+if ($null -eq $loadedNotebookModule) {
+    Import-Module `
+        -Name $moduleManifestPath `
+        -Force `
+        -ErrorAction Stop
+}
 Describe 'O365Toolkit.NotebookLM module' {
     It 'has a valid module manifest' {
         $loadedModule = Get-Module `

@@ -65,6 +65,9 @@ function New-ToolkitNotebookExport {
         )
     }
 
+    $inventory = Get-ToolkitNotebookRepositoryInventory `
+        -RepositoryPath $resolvedRepositoryPath
+
     $timestamp = Get-Date `
         -Format 'yyyyMMdd-HHmmss'
 
@@ -119,6 +122,19 @@ function New-ToolkitNotebookExport {
             }
         }
 
+        $notebookTests = Join-Path `
+            -Path $resolvedRepositoryPath `
+            -ChildPath 'Tools\O365Toolkit.NotebookLM\Tests'
+
+        if (Test-Path -LiteralPath $notebookTests) {
+            $testPaths += $notebookTests
+        }
+
+        $testPaths = @(
+            $testPaths |
+            Select-Object -Unique
+        )
+
         if ($testPaths.Count -gt 0) {
             $testResult = Invoke-Pester `
                 -Path $testPaths `
@@ -148,51 +164,32 @@ Duration: $($testResult.Duration)
         -NextFeature $NextFeature `
         -TestSummary $testSummary
 
+    $projectIndexPath = Join-Path `
+        -Path $documentPath `
+        -ChildPath 'Project_Index.md'
+
+    $projectIndexResult = New-ToolkitProjectIndex `
+        -Inventory $inventory `
+        -OutputPath $projectIndexPath
+
+    $functionReferencePath = Join-Path `
+        -Path $documentPath `
+        -ChildPath 'Function_Reference.md'
+
+    $functionReferenceResult = New-ToolkitFunctionReference `
+        -Inventory $inventory `
+        -OutputPath $functionReferencePath
+
+    $sourceSnapshotResult = $null
+
     if ($IncludeSourceSnapshot) {
         $sourceSnapshotPath = Join-Path `
             -Path $workingPath `
-            -ChildPath 'SourceSnapshot'
+            -ChildPath 'RepositorySnapshot'
 
-        New-Item `
-            -Path $sourceSnapshotPath `
-            -ItemType Directory `
-            -Force `
-            -ErrorAction Stop |
-            Out-Null
-
-        $sourceFiles = Get-ChildItem `
-            -LiteralPath $resolvedRepositoryPath `
-            -Recurse `
-            -File `
-            -Include '*.ps1','*.psm1','*.psd1' |
-            Where-Object {
-                $_.FullName -notmatch '[\\/]\.git[\\/]'
-            }
-
-        foreach ($file in $sourceFiles) {
-            $relativePath = $file.FullName.Substring(
-                $resolvedRepositoryPath.Length
-            ).TrimStart('\', '/')
-
-            $destination = Join-Path `
-                -Path $sourceSnapshotPath `
-                -ChildPath $relativePath
-
-            $destinationFolder = Split-Path `
-                -Path $destination `
-                -Parent
-
-            New-Item `
-                -Path $destinationFolder `
-                -ItemType Directory `
-                -Force |
-                Out-Null
-
-            Copy-Item `
-                -LiteralPath $file.FullName `
-                -Destination $destination `
-                -Force
-        }
+        $sourceSnapshotResult = Copy-ToolkitNotebookRepositorySnapshot `
+            -Inventory $inventory `
+            -DestinationPath $sourceSnapshotPath
     }
 
     $zipPath = Join-Path `
@@ -214,20 +211,39 @@ Duration: $($testResult.Duration)
         -PreviousBaselineCommit $marker.BaselineCommit `
         -NextFeature $NextFeature
 
+    $sourceSnapshotFileCount = if (
+        $null -ne $sourceSnapshotResult
+    ) {
+        $sourceSnapshotResult.FileCount
+    }
+    else {
+        0
+    }
+
     return [pscustomobject]@{
-        Success                = $true
-        ExportVersion          = $ExportVersion
-        RepositoryPath         = $resolvedRepositoryPath
-        OutputRoot             = $OutputRoot
-        WorkingPath            = $workingPath
-        ZipPath                = $zipPath
-        MarkerPath             = $markerPath
-        BaselineCommit         = $snapshot.CurrentCommit
-        PreviousBaselineCommit = $marker.BaselineCommit
-        IncrementalRange       = $snapshot.IncrementalRange
-        DocumentCount          = $documentResult.FileCount
-        SourceSnapshotIncluded = [bool]$IncludeSourceSnapshot
-        TestsRun               = [bool]$RunTests
-        MarkerUpdated          = $markerWriteResult.Success
+        Success                 = $true
+        ExportVersion           = $ExportVersion
+        RepositoryPath          = $resolvedRepositoryPath
+        OutputRoot              = $OutputRoot
+        WorkingPath             = $workingPath
+        ZipPath                 = $zipPath
+        MarkerPath              = $markerPath
+        BaselineCommit          = $snapshot.CurrentCommit
+        PreviousBaselineCommit  = $marker.BaselineCommit
+        IncrementalRange        = $snapshot.IncrementalRange
+        DocumentCount           = $documentResult.FileCount + 2
+        ProjectIndexPath        = $projectIndexResult.OutputPath
+        FunctionReferencePath   = $functionReferenceResult.OutputPath
+        InventoryFileCount      = $inventory.FileCount
+        FunctionCount           = $functionReferenceResult.FunctionCount
+        PublicFunctionCount     = $functionReferenceResult.PublicFunctionCount
+        PrivateFunctionCount    = $functionReferenceResult.PrivateFunctionCount
+        TestFileCount           = $projectIndexResult.TestFileCount
+        DocumentationCount      = $projectIndexResult.DocumentationCount
+        RunbookCount            = $projectIndexResult.RunbookCount
+        SourceSnapshotIncluded  = [bool]$IncludeSourceSnapshot
+        SourceSnapshotFileCount = $sourceSnapshotFileCount
+        TestsRun                = [bool]$RunTests
+        MarkerUpdated           = $markerWriteResult.Success
     }
 }

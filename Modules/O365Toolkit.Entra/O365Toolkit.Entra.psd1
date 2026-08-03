@@ -15,7 +15,10 @@
 
     PowerShellVersion = '7.2'
 
-    FunctionsToExport = '*' 
+    FunctionsToExport = @(
+        'Get-ToolkitUser'
+        'Get-ToolkitGroup'
+    ) 
 
     CmdletsToExport = @()
 
@@ -38,3 +41,4 @@
         }
     }
 }
+

@@ -1,281 +1,129 @@
 function New-ToolkitNotebookExport {
     [CmdletBinding()]
-    [OutputType([pscustomobject])]
     param(
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory = $false)]
+        [Alias('RepositoryRoot', 'Repository')]
         [string]$RepositoryPath = (Get-Location).Path,
 
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [string]$OutputRoot = (
-            Join-Path `
-                -Path $env:USERPROFILE `
-                -ChildPath 'Documents\Private-O365Toolkit-NotebookLM'
-        ),
+        [Parameter(Mandatory = $false)]
+        [Alias('OutputDirectory', 'OutputPath')]
+        [string]$OutputRoot,
 
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]$ExportVersion,
+        [Parameter(Mandatory = $false)]
+        [string]$ExportVersion = 'v0.2',
 
-        [Parameter()]
-        [AllowNull()]
-        [AllowEmptyString()]
-        [string]$NextFeature,
+        [Parameter(Mandatory = $false)]
+        [string]$NextFeature = 'Get-ToolkitGroup',
 
-        [Parameter()]
-        [switch]$IncludeSourceSnapshot,
-
-        [Parameter()]
-        [switch]$RunTests
+        [Parameter(Mandatory = $false)]
+        [Alias('IncludeSnapshot')]
+        [switch]$IncludeSourceSnapshot
     )
 
-    $resolvedRepositoryPath = (
-        Resolve-Path `
-            -LiteralPath $RepositoryPath `
-            -ErrorAction Stop
-    ).Path
+    process {
+        $ErrorActionPreference = 'Stop'
 
-    if (-not (Test-Path -LiteralPath $OutputRoot)) {
-        New-Item `
-            -Path $OutputRoot `
-            -ItemType Directory `
-            -Force `
-            -ErrorAction Stop |
-            Out-Null
-    }
-
-    $markerPath = Join-Path `
-        -Path $OutputRoot `
-        -ChildPath 'SESSION_MARKER_PRIVATE.md'
-
-    $marker = Get-ToolkitNotebookMarker `
-        -MarkerPath $markerPath
-
-    $snapshot = Get-ToolkitNotebookGitSnapshot `
-        -RepositoryPath $resolvedRepositoryPath `
-        -PreviousBaselineCommit $marker.BaselineCommit
-
-    if (-not $snapshot.IsClean) {
-        throw (
-            'The repository has uncommitted changes. ' +
-            'Commit or stash them before creating an export.' +
-            [environment]::NewLine +
-            ($snapshot.WorkingTreeStatus -join [environment]::NewLine)
-        )
-    }
-
-    $inventory = Get-ToolkitNotebookRepositoryInventory `
-        -RepositoryPath $resolvedRepositoryPath
-
-    $timestamp = Get-Date `
-        -Format 'yyyyMMdd-HHmmss'
-
-    $exportName = (
-        'O365Toolkit_NotebookLM_Private_{0}_{1}' -f
-        $ExportVersion,
-        $timestamp
-    )
-
-    $workingPath = Join-Path `
-        -Path $OutputRoot `
-        -ChildPath $exportName
-
-    $documentPath = Join-Path `
-        -Path $workingPath `
-        -ChildPath 'NotebookLM'
-
-    New-Item `
-        -Path $documentPath `
-        -ItemType Directory `
-        -Force `
-        -ErrorAction Stop |
-        Out-Null
-
-    $testSummary = 'Tests were not run during this export.'
-    $testResult = $null
-
-    if ($RunTests) {
-        $testPaths = @()
-
-        $coreTests = Join-Path `
-            -Path $resolvedRepositoryPath `
-            -ChildPath 'Core\Tests'
-
-        if (Test-Path -LiteralPath $coreTests) {
-            $testPaths += $coreTests
+        # Get git snapshot and verify repo is clean
+        $gitSnapshot = Get-ToolkitNotebookGitSnapshot -RepositoryPath $RepositoryPath
+        if (-not $gitSnapshot.IsClean) {
+            throw "Repository at '$RepositoryPath' has uncommitted changes. Commit or stash before running export."
         }
 
-        $modulesPath = Join-Path `
-            -Path $resolvedRepositoryPath `
-            -ChildPath 'Modules'
+        # Resolve output directory
+        if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+            $OutputRoot = Join-Path -Path $RepositoryPath -ChildPath 'PrivateExports'
+        }
 
-        if (Test-Path -LiteralPath $modulesPath) {
-            $moduleTestFolders = Get-ChildItem `
-                -LiteralPath $modulesPath `
-                -Recurse `
-                -Directory `
-                -Filter 'Tests' `
-                -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $OutputRoot)) {
+            $null = New-Item -Path $OutputRoot -ItemType Directory -Force
+        }
 
-            foreach ($folder in $moduleTestFolders) {
-                $testPaths += $folder.FullName
+        # Setup staging directory
+        $stagingDirectory = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ([System.Guid]::NewGuid().ToString())
+        $null = New-Item -Path $stagingDirectory -ItemType Directory -Force
+
+        try {
+            $notebookLmDir = Join-Path -Path $stagingDirectory -ChildPath 'NotebookLM'
+            $null = New-Item -Path $notebookLmDir -ItemType Directory -Force
+
+            # Collect repository inventory
+            $inventory = Get-ToolkitNotebookRepositoryInventory -RepositoryPath $RepositoryPath
+
+            # Generate top-level NotebookLM documents
+            $docResult = New-ToolkitNotebookDocuments `
+                -Snapshot $gitSnapshot `
+                -OutputPath $notebookLmDir `
+                -ExportVersion $ExportVersion `
+                -NextFeature $NextFeature
+
+            # Generate Project Index & Function Reference
+            $projectIndexPath = Join-Path -Path $notebookLmDir -ChildPath 'Project_Index.md'
+            $indexResult = New-ToolkitProjectIndex -Inventory $inventory -OutputPath $projectIndexPath
+
+            $functionRefPath = Join-Path -Path $notebookLmDir -ChildPath 'Function_Reference.md'
+            $funcRefResult = New-ToolkitFunctionReference -Inventory $inventory -OutputPath $functionRefPath
+
+            # Generate ModuleBooks sub-structure
+            $moduleBooksDir = Join-Path -Path $notebookLmDir -ChildPath 'ModuleBooks'
+            $moduleBooksResult = New-ToolkitModuleBooks -Inventory $inventory -OutputPath $moduleBooksDir
+
+            # Handle source snapshot if requested
+            $snapshotIncluded = $false
+            $snapshotFileCount = 0
+            if ($IncludeSourceSnapshot) {
+                $snapshotDir = Join-Path -Path $stagingDirectory -ChildPath 'RepositorySnapshot'
+                $snapshotResult = Copy-ToolkitNotebookRepositorySnapshot -Inventory $inventory -DestinationPath $snapshotDir
+                $snapshotIncluded = [bool]$snapshotResult.Success
+                $snapshotFileCount = [int]$snapshotResult.FileCount
+            }
+
+            # Generate ZIP file
+            $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+            $zipFileName = "NotebookLM_Export_$timestamp.zip"
+            $zipPath = Join-Path -Path $OutputRoot -ChildPath $zipFileName
+
+            if (Test-Path -LiteralPath $zipPath) {
+                Remove-Item -LiteralPath $zipPath -Force
+            }
+
+            Compress-Archive -Path "$stagingDirectory\*" -DestinationPath $zipPath -CompressionLevel Optimal
+
+            # Write/Update private session marker
+            $markerPath = Join-Path -Path $RepositoryPath -ChildPath 'SESSION_MARKER_PRIVATE.md'
+            $markerResult = Set-ToolkitNotebookMarker `
+                -MarkerPath $markerPath `
+                -ExportVersion $ExportVersion `
+                -BaselineCommit $gitSnapshot.CurrentCommit `
+                -BaselineTag $gitSnapshot.LatestTag `
+                -Branch $gitSnapshot.Branch `
+                -PreviousBaselineCommit $gitSnapshot.PreviousBaselineCommit `
+                -NextFeature $NextFeature
+
+            return [pscustomobject]@{
+                Success                  = $true
+                ZipPath                  = $zipPath
+                BaselineCommit           = $gitSnapshot.CurrentCommit
+                PreviousBaselineCommit   = $gitSnapshot.PreviousBaselineCommit
+                DocumentCount            = ($docResult.FileCount + 2)
+                InventoryFileCount       = $inventory.FileCount
+                FunctionCount            = $indexResult.FunctionCount
+                PublicFunctionCount      = $indexResult.PublicFunctionCount
+                PrivateFunctionCount     = $indexResult.PrivateFunctionCount
+                TestFileCount            = $indexResult.TestFileCount
+                DocumentationCount       = $indexResult.DocumentationCount
+                RunbookCount             = $indexResult.RunbookCount
+                SourceSnapshotIncluded   = $snapshotIncluded
+                SourceSnapshotFileCount = $snapshotFileCount
+                MarkerUpdated            = [bool]$markerResult.Success
+                ProjectIndexPath         = $projectIndexPath
+                FunctionReferencePath    = $functionRefPath
+                ModuleBooksPath          = $moduleBooksDir
             }
         }
-
-        # NotebookLM self-tests are deliberately excluded here.
-        # They are run as a separate pre-export quality gate.
-        # Running exporter tests recursively from inside the exporter
-        # can alter the active module scope and create a false failure.
-
-        $testPaths = @(
-            $testPaths |
-            Select-Object -Unique
-        )
-
-        if ($testPaths.Count -eq 0) {
-            $testSummary = 'No Core or service-module test folders were found.'
-        }
-        else {
-            $testResult = Invoke-Pester `
-                -Path $testPaths `
-                -Output None `
-                -PassThru
-
-            $testSummary = @"
-Total: $($testResult.TotalCount)
-Passed: $($testResult.PassedCount)
-Failed: $($testResult.FailedCount)
-Skipped: $($testResult.SkippedCount)
-Result: $($testResult.Result)
-Duration: $($testResult.Duration)
-"@
-
-            if (
-                $testResult.Result -ne 'Passed' -or
-                $testResult.FailedCount -gt 0 -or
-                $testResult.TotalCount -eq 0
-            ) {
-                throw (
-                    'Core or service-module tests failed. ' +
-                    "Result: $($testResult.Result); " +
-                    "Total: $($testResult.TotalCount); " +
-                    "Failed: $($testResult.FailedCount)."
-                )
+        finally {
+            if (Test-Path -LiteralPath $stagingDirectory) {
+                Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
-    }
-
-    $documentResult = New-ToolkitNotebookDocuments `
-        -Snapshot $snapshot `
-        -OutputPath $documentPath `
-        -ExportVersion $ExportVersion `
-        -NextFeature $NextFeature `
-        -TestSummary $testSummary
-
-    $projectIndexPath = Join-Path `
-        -Path $documentPath `
-        -ChildPath 'Project_Index.md'
-
-    $projectIndexResult = New-ToolkitProjectIndex `
-        -Inventory $inventory `
-        -OutputPath $projectIndexPath
-
-    $functionReferencePath = Join-Path `
-        -Path $documentPath `
-        -ChildPath 'Function_Reference.md'
-
-    $functionReferenceResult = New-ToolkitFunctionReference `
-        -Inventory $inventory `
-        -OutputPath $functionReferencePath
-
-    $sourceSnapshotResult = $null
-    $sourceSnapshotPath = $null
-
-    if ($IncludeSourceSnapshot) {
-        $sourceSnapshotPath = Join-Path `
-            -Path $workingPath `
-            -ChildPath 'RepositorySnapshot'
-
-        $sourceSnapshotResult = Copy-ToolkitNotebookRepositorySnapshot `
-            -Inventory $inventory `
-            -DestinationPath $sourceSnapshotPath
-    }
-
-    $zipPath = Join-Path `
-        -Path $OutputRoot `
-        -ChildPath "$exportName.zip"
-
-    Compress-Archive `
-        -Path (
-            Join-Path `
-                -Path $workingPath `
-                -ChildPath '*'
-        ) `
-        -DestinationPath $zipPath `
-        -CompressionLevel Optimal `
-        -Force `
-        -ErrorAction Stop
-
-    if (-not (Test-Path -LiteralPath $zipPath)) {
-        throw "The expected ZIP file was not created: $zipPath"
-    }
-
-    $markerWriteResult = Set-ToolkitNotebookMarker `
-        -MarkerPath $markerPath `
-        -ExportVersion $ExportVersion `
-        -BaselineCommit $snapshot.CurrentCommit `
-        -BaselineTag $snapshot.LatestTag `
-        -Branch $snapshot.Branch `
-        -PreviousBaselineCommit $marker.BaselineCommit `
-        -NextFeature $NextFeature
-
-    $sourceSnapshotFileCount = 0
-
-    if ($null -ne $sourceSnapshotResult) {
-        $sourceSnapshotFileCount = $sourceSnapshotResult.FileCount
-    }
-
-    $testsPassed = $null
-    $testsFailed = $null
-    $testsTotal = $null
-
-    if ($null -ne $testResult) {
-        $testsPassed = $testResult.PassedCount
-        $testsFailed = $testResult.FailedCount
-        $testsTotal = $testResult.TotalCount
-    }
-
-    return [pscustomobject]@{
-        Success                  = $true
-        ExportVersion            = $ExportVersion
-        RepositoryPath           = $resolvedRepositoryPath
-        OutputRoot               = $OutputRoot
-        WorkingPath              = $workingPath
-        DocumentPath             = $documentPath
-        ZipPath                  = $zipPath
-        MarkerPath               = $markerPath
-        BaselineCommit           = $snapshot.CurrentCommit
-        PreviousBaselineCommit   = $marker.BaselineCommit
-        IncrementalRange         = $snapshot.IncrementalRange
-        DocumentCount            = $documentResult.FileCount + 2
-        ProjectIndexPath         = $projectIndexResult.OutputPath
-        FunctionReferencePath    = $functionReferenceResult.OutputPath
-        InventoryFileCount       = $inventory.FileCount
-        FunctionCount            = $functionReferenceResult.FunctionCount
-        PublicFunctionCount      = $functionReferenceResult.PublicFunctionCount
-        PrivateFunctionCount     = $functionReferenceResult.PrivateFunctionCount
-        TestFileCount            = $projectIndexResult.TestFileCount
-        DocumentationCount       = $projectIndexResult.DocumentationCount
-        RunbookCount             = $projectIndexResult.RunbookCount
-        SourceSnapshotIncluded   = [bool]$IncludeSourceSnapshot
-        SourceSnapshotPath       = $sourceSnapshotPath
-        SourceSnapshotFileCount  = $sourceSnapshotFileCount
-        TestsRun                 = [bool]$RunTests
-        TestsTotal               = $testsTotal
-        TestsPassed              = $testsPassed
-        TestsFailed              = $testsFailed
-        MarkerUpdated            = $markerWriteResult.Success
-        GeneratedAt              = Get-Date
     }
 }

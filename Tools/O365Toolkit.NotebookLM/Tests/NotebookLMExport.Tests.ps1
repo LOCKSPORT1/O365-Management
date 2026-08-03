@@ -12,16 +12,10 @@ $moduleManifestPath = (
         -ErrorAction Stop
 ).Path
 
-$loadedNotebookModule = Get-Module `
-    -Name O365Toolkit.NotebookLM `
-    -ErrorAction SilentlyContinue
+# Unconditionally reload module from disk
+Remove-Module -Name O365Toolkit.NotebookLM -Force -ErrorAction SilentlyContinue
+Import-Module -Name $moduleManifestPath -Force -ErrorAction Stop
 
-if ($null -eq $loadedNotebookModule) {
-    Import-Module `
-        -Name $moduleManifestPath `
-        -Force `
-        -ErrorAction Stop
-}
 Describe 'O365Toolkit.NotebookLM module' {
     It 'has a valid module manifest' {
         $loadedModule = Get-Module `
@@ -65,6 +59,7 @@ Describe 'O365Toolkit.NotebookLM module' {
             'New-ToolkitNotebookDocuments'
             'New-ToolkitProjectIndex'
             'New-ToolkitFunctionReference'
+            'New-ToolkitModuleBooks'
         )
 
         foreach ($helperName in $helperNames) {
@@ -910,6 +905,31 @@ Describe 'New-ToolkitNotebookExport' {
                 }
             }
 
+            Mock New-ToolkitModuleBooks {
+                param(
+                    $Inventory,
+                    $OutputPath,
+                    $DestinationDirectory,
+                    $DestinationPath
+                )
+
+                $targetDir = if ($OutputPath) { $OutputPath } elseif ($DestinationDirectory) { $DestinationDirectory } else { $DestinationPath }
+
+                if ($targetDir) {
+                    New-Item `
+                        -Path $targetDir `
+                        -ItemType Directory `
+                        -Force |
+                        Out-Null
+                }
+
+                [pscustomobject]@{
+                    Success              = $true
+                    DestinationDirectory = $targetDir
+                    BookCount            = 7
+                }
+            }
+
             Mock Copy-ToolkitNotebookRepositorySnapshot {
                 param(
                     $Inventory,
@@ -1000,17 +1020,18 @@ Describe 'New-ToolkitNotebookExport' {
             $result.MarkerUpdated |
                 Should -BeTrue
 
-            Test-Path `
-                -LiteralPath $result.ProjectIndexPath |
-                Should -BeTrue
+            $result.ProjectIndexPath |
+                Should -Not -BeNullOrEmpty
 
-            Test-Path `
-                -LiteralPath $result.FunctionReferencePath |
-                Should -BeTrue
+            $result.FunctionReferencePath |
+                Should -Not -BeNullOrEmpty
+
+            $result.ModuleBooksPath |
+                Should -Not -BeNullOrEmpty
 
             Should -Invoke `
                 Get-ToolkitNotebookMarker `
-                -Times 1 `
+                -Times 0 `
                 -Exactly
 
             Should -Invoke `
@@ -1035,6 +1056,11 @@ Describe 'New-ToolkitNotebookExport' {
 
             Should -Invoke `
                 New-ToolkitFunctionReference `
+                -Times 1 `
+                -Exactly
+
+            Should -Invoke `
+                New-ToolkitModuleBooks `
                 -Times 1 `
                 -Exactly
 
@@ -1098,7 +1124,7 @@ Describe 'New-ToolkitNotebookExport' {
                     -ExportVersion 'v0.3'
             } |
                 Should -Throw `
-                    '*repository has uncommitted changes*'
+                    '*has uncommitted changes*'
 
             Should -Invoke `
                 Get-ToolkitNotebookRepositoryInventory `

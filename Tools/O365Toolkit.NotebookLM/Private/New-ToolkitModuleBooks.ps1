@@ -209,10 +209,16 @@ function New-ToolkitModuleBooks {
                 -Extension $file.Extension
 
             try {
-                $content = Get-Content `
-                    -LiteralPath $file.FullName `
-                    -Raw `
-                    -ErrorAction Stop
+                # Guardrail: Skip or truncate individual source files exceeding 2MB to prevent memory exhaustion
+                $fileInfo = Get-Item -LiteralPath $file.FullName -ErrorAction Stop
+                if ($fileInfo.Length -gt 2MB) {
+                    $content = "[WARNING: File skipped during compilation because its size ($($fileInfo.Length) bytes) exceeds the safety threshold limit of 2MB.]"
+                } else {
+                    $content = Get-Content `
+                        -LiteralPath $file.FullName `
+                        -Raw `
+                        -ErrorAction Stop
+                }
             }
             catch {
                 $content = (

@@ -2,14 +2,25 @@ function New-ToolkitModuleBooks {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory = $false)]
+        [string]$OutputDirectory,
+
+        [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
         [pscustomobject]$Inventory,
 
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory = $false)]
         [string]$OutputPath
     )
+
+    # Safe fallback resolution
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $OutputPath = $OutputDirectory
+    }
+
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        throw "New-ToolkitModuleBooks requires a valid target directory path."
+    }
 
     if (-not (Test-Path -LiteralPath $OutputPath)) {
         New-Item `
@@ -43,7 +54,11 @@ function New-ToolkitModuleBooks {
         [CmdletBinding()]
         [OutputType([pscustomobject])]
         param(
-            [Parameter(Mandatory)]
+        [Parameter(Mandatory = $false)]
+        [string]$OutputDirectory,
+
+            [Parameter(Mandatory
+    )]
             [ValidateNotNullOrEmpty()]
             [string]$RelativePath
         )
@@ -118,7 +133,11 @@ function New-ToolkitModuleBooks {
         [CmdletBinding()]
         [OutputType([string])]
         param(
-            [Parameter(Mandatory)]
+        [Parameter(Mandatory = $false)]
+        [string]$OutputDirectory,
+
+            [Parameter(Mandatory
+    )]
             [string]$Extension
         )
 
@@ -250,3 +269,4 @@ function New-ToolkitModuleBooks {
         GeneratedAt  = $generatedAt
     }
 }
+

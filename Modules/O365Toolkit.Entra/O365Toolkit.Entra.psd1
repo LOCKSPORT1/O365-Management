@@ -2,7 +2,6 @@
     RootModule = 'O365Toolkit.Entra.psm1'
 
     ModuleVersion = '0.1.0'
-
     GUID = '72ec25a4-7dcb-4ed6-83e7-68f66c0b3f54'
 
     Author = 'Joshua Christy'
@@ -41,4 +40,6 @@
         }
     }
 }
+
+
 

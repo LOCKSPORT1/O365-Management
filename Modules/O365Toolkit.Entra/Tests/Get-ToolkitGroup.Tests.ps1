@@ -1,8 +1,3 @@
-BeforeAll {
-    Import-Module "$PSScriptRoot\..\..\..\Core\O365Toolkit.Core.psd1" -Force
-    Import-Module "$PSScriptRoot\..\O365Toolkit.Entra.psd1" -Force
-}
-
 Describe 'Get-ToolkitGroup' {
     Context 'Parameter Validation & Request Building' {
         It 'queries groups via Graph endpoint with select parameters' {
@@ -47,3 +42,6 @@ Describe 'Get-ToolkitGroup' {
         }
     }
 }
+
+
+

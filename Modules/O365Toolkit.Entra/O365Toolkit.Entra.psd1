@@ -17,6 +17,7 @@
     FunctionsToExport = @(
         'Get-ToolkitUser'
         'Get-ToolkitGroup'
+		'Get-ToolkitGroupMember'
     ) 
 
     CmdletsToExport = @()

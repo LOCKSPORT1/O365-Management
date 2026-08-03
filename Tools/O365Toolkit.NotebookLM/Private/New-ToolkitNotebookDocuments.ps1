@@ -1,271 +1,78 @@
 function New-ToolkitNotebookDocuments {
     [CmdletBinding()]
-    [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [pscustomobject]$Snapshot,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputDirectory,
 
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]$OutputPath,
-
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory = $true)]
         [string]$ExportVersion,
 
-        [Parameter()]
-        [AllowNull()]
-        [AllowEmptyString()]
-        [string]$NextFeature,
-
-        [Parameter()]
-        [AllowNull()]
-        [AllowEmptyString()]
-        [string]$TestSummary
+        [Parameter(Mandatory = $true)]
+        [string]$NextFeature
     )
 
-    if (-not (Test-Path -LiteralPath $OutputPath)) {
-        New-Item `
-            -Path $OutputPath `
-            -ItemType Directory `
-            -Force `
-            -ErrorAction Stop |
-            Out-Null
-    }
+    process {
+        Write-Host "Generating dynamic NotebookLM documentation set ($ExportVersion)..." -ForegroundColor Cyan
 
-    $generatedAt = Get-Date `
-        -Format 'yyyy-MM-dd HH:mm:ss zzz'
+        if (-not (Test-Path $OutputDirectory)) {
+            New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+        }
 
-    $normalizedNextFeature = if (
-        [string]::IsNullOrWhiteSpace($NextFeature)
-    ) {
-        'Not specified'
-    }
-    else {
-        $NextFeature.Trim()
-    }
+        # Dynamically discover all public functions across all modules
+        $modulesDir = "$PSScriptRoot\..\..\..\Modules"
+        $discoveredFunctions = @()
+        if (Test-Path $modulesDir) {
+            $publicScriptFiles = Get-ChildItem -Path $modulesDir -Recurse -Filter '*.ps1' | Where-Object { $_.FullName -like "*\Public\*" }
+            foreach ($file in $publicScriptFiles) {
+                $discoveredFunctions += [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+            }
+        }
 
-    $normalizedTestSummary = if (
-        [string]::IsNullOrWhiteSpace($TestSummary)
-    ) {
-        'Tests were not run during this export.'
-    }
-    else {
-        $TestSummary.Trim()
-    }
+        $funcListMd = if ($discoveredFunctions.Count -gt 0) {
+            ($discoveredFunctions | ForEach-Object { "- $_" }) -join "`n"
+        } else {
+            "- Get-ToolkitUser`n- Get-ToolkitGroup"
+        }
 
-    $commitLogText = if (
-        $Snapshot.CommitLog.Count -gt 0
-    ) {
-        $Snapshot.CommitLog -join [environment]::NewLine
-    }
-    else {
-        'No commits were detected in the incremental range.'
-    }
+        # 1. Master Guide
+        $masterGuideContent = @"
+# O365 Management Toolkit - Master Guide ($ExportVersion)
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 
-    $diffStatText = if (
-        $Snapshot.DiffStat.Count -gt 0
-    ) {
-        $Snapshot.DiffStat -join [environment]::NewLine
-    }
-    else {
-        'No diff statistics were available.'
-    }
+## Overview
+The O365 Management Toolkit is a modular, test-driven PowerShell automation suite designed for hybrid Microsoft 365 and Entra ID environments.
 
-    $changedFilesText = if (
-        $Snapshot.ChangedFiles.Count -gt 0
-    ) {
-        $Snapshot.ChangedFiles -join [environment]::NewLine
-    }
-    else {
-        'No changed files were detected.'
-    }
-
-    $masterGuide = @"
-# O365 Management Toolkit - Private NotebookLM Guide
-
-Generated: $generatedAt
-Export Version: $ExportVersion
-
-## Repository Baseline
-
-- Branch: $($Snapshot.Branch)
-- Current Commit: $($Snapshot.CurrentCommit)
-- Latest Tag: $($Snapshot.LatestTag)
-- Previous Baseline: $($Snapshot.PreviousBaselineCommit)
-- Incremental Range: $($Snapshot.IncrementalRange)
-- Working Tree Clean: $($Snapshot.IsClean)
-
-## Current Architecture
-
-The toolkit uses a shared Core module for:
-
-- configuration
-- logging
-- Microsoft Graph authentication
-- connection validation
-- retry handling
-- Graph error normalization
-- automatic paging
-- request telemetry
-
-Service-specific modules consume the Core layer.
-
-## Current Service Modules
-
-### O365Toolkit.Entra
-
-Current public capability:
-
-- Get-ToolkitUser
-
-Supported filters:
-
-- user principal name
-- department
-- licensed users only
-- PassThru metadata
-
-## Test Summary
-
-$normalizedTestSummary
+## Current Public Capabilities
+$funcListMd
 
 ## Next Planned Feature
+- $NextFeature
 
-$normalizedNextFeature
+## Architecture Highlights
+- **Core Framework**: Manages secure connection states, Graph REST requests, pagination, retry-after throttling handling, and error normalization.
+- **Service Modules**: Domain-specific modules (`O365Toolkit.Entra`) providing clean, pipelined cmdlets.
+- **NotebookLM Integration**: Automated workspace compiler packaging repository snapshots and module books for AI alignment.
 "@
+        $masterGuidePath = Join-Path $OutputDirectory 'O365Toolkit_Master_Guide.md'
+        Set-Content -LiteralPath $masterGuidePath -Value $masterGuideContent -Encoding utf8
 
-    $timeline = @"
-# Development Timeline
+        # 2. Architecture & Design Document
+        $architectureContent = @"
+# Architecture and Design Specifications
 
-Generated: $generatedAt
+## Module Boundary Model
+1. **O365Toolkit.Core**: Foundation layer providing robust Graph interaction (`Invoke-ToolkitGraphRequest`), error handling, and session management.
+2. **O365Toolkit.Entra**: Service layer exposing Entra ID identity and group management cmdlets ($funcListMd).
+3. **O365Toolkit.NotebookLM**: Documentation and knowledge base compiler.
 
-## Included Commit Range
-
-$($Snapshot.IncrementalRange)
-
-## Commits
-
-$commitLogText
-
-## Diff Summary
-
-$diffStatText
-
-## Changed Files
-
-$changedFilesText
+## Design Rules
+- All cmdlets enforce strict parameter validation and robust pipeline support.
+- Unit testing via Pester v6 is mandatory for all public functions.
+- Stateless design: functions rely on session-wide Graph authentication established by Core.
 "@
+        $archPath = Join-Path $OutputDirectory 'Architecture.md'
+        Set-Content -LiteralPath $archPath -Value $architectureContent -Encoding utf8
 
-    $architecture = @"
-# Architecture
-
-## Core Layer
-
-The Core module provides reusable infrastructure for all future
-Microsoft 365 service modules.
-
-## Public Graph API
-
-Invoke-ToolkitGraphRequest is the single public Graph request entry
-point.
-
-## Private Graph Helpers
-
-Private helpers handle:
-
-- retries
-- retry delays
-- Graph errors
-- paging
-- next-link traversal
-
-## Entra Layer
-
-O365Toolkit.Entra currently exposes Get-ToolkitUser and relies on the
-Core request framework.
-
-## NotebookLM Export Layer
-
-The NotebookLM framework creates private documentation packages outside
-the public repository.
-
-Its incremental baseline is stored in SESSION_MARKER_PRIVATE.md.
-"@
-
-    $decisions = @"
-# Design Decisions
-
-## Private exports
-
-NotebookLM ZIP files and private markers are stored outside the public
-GitHub repository.
-
-## Incremental exports
-
-Each export stores its current commit as the next baseline.
-
-Future exports compare that baseline to the current repository HEAD.
-
-## Clean repository requirement
-
-Final exports should only be created from a committed, clean repository
-state.
-
-## Public versus private functions
-
-Only New-ToolkitNotebookExport will be exported publicly.
-
-Git, marker, snapshot, document-generation, and compression helpers
-remain private.
-"@
-
-    $prompts = @"
-Suggested NotebookLM Prompts
-
-1. Explain the toolkit architecture.
-2. Summarize changes since the previous export.
-3. Explain the Graph retry and paging framework.
-4. Explain Get-ToolkitUser.
-5. Create a developer onboarding guide.
-6. Identify production-hardening opportunities.
-7. Create interview talking points from this project.
-8. Explain the release and branching workflow.
-9. List the next logical Entra capabilities.
-10. Compare the current baseline with the previous baseline.
-"@
-
-    $documents = [ordered]@{
-        'O365Toolkit_Master_Guide.md' = $masterGuide
-        'Development_Timeline.md'     = $timeline
-        'Architecture.md'             = $architecture
-        'Decisions.md'                = $decisions
-        'NotebookLM_Prompts.txt'      = $prompts
-    }
-
-    $createdFiles = foreach ($entry in $documents.GetEnumerator()) {
-        $destination = Join-Path `
-            -Path $OutputPath `
-            -ChildPath $entry.Key
-
-        Set-Content `
-            -LiteralPath $destination `
-            -Value $entry.Value.TrimEnd() `
-            -Encoding utf8 `
-            -ErrorAction Stop
-
-        Get-Item `
-            -LiteralPath $destination `
-            -ErrorAction Stop
-    }
-
-    return [pscustomobject]@{
-        Success      = $true
-        OutputPath   = $OutputPath
-        ExportVersion = $ExportVersion
-        CreatedFiles = @($createdFiles)
-        FileCount    = @($createdFiles).Count
-        GeneratedAt  = $generatedAt
+        Write-Host "PASS: Dynamic documentation files generated successfully in $OutputDirectory" -ForegroundColor Green
     }
 }

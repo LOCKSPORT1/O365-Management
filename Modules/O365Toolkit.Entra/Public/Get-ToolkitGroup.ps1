@@ -1,87 +1,89 @@
 function Get-ToolkitGroup {
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
+    [CmdletBinding(DefaultParameterSetName = 'All')]
     param(
-        [Parameter(Mandatory = $false)]
+        [Parameter(ParameterSetName = 'ById', Mandatory = $true, ValueFromPipeline = $true)]
+        [ValidateNotNullOrEmpty()]
         [string]$GroupId,
 
-        [Parameter(Mandatory = $false)]
+        [Parameter(ParameterSetName = 'BySearch')]
         [string]$DisplayName,
 
-        [Parameter(Mandatory = $false)]
+        [Parameter(ParameterSetName = 'BySearch')]
+        [ValidateSet('Unified', 'Security', 'MailEnabledSecurity', 'Distribution')]
+        [string]$GroupType,
+
+        [Parameter(ParameterSetName = 'ByFilter')]
         [string]$Filter,
 
-        [Parameter(Mandatory = $false)]
-        [string[]]$Select = @('id', 'displayName', 'description', 'groupTypes', 'mailEnabled', 'securityEnabled'),
+        [Parameter(ParameterSetName = 'All')]
+        [switch]$All,
 
-        [Parameter(Mandatory = $false)]
-        [psobject]$Config
+        [Parameter()]
+        [string[]]$Select = @('id', 'displayName', 'groupTypes', 'mailEnabled', 'securityEnabled', 'mail'),
+
+        [Parameter()]
+        [pscustomobject]$Config
     )
 
     process {
-        $ErrorActionPreference = 'Stop'
+        $baseUri = "https://graph.microsoft.com/v1.0/groups"
+        $queryParams = @()
+        $headers = @{}
 
-        try {
-            $invokeArgs = @{
-                Method = 'GET'
-            }
-            if ($PSBoundParameters.ContainsKey('Config') -and $null -ne $Config) {
-                $invokeArgs['Config'] = $Config
-            }
+        if ($Select) {
+            $queryParams += "`$select=$($Select -join ',')"
+        }
 
-            if (-not [string]::IsNullOrWhiteSpace($GroupId)) {
-                $uri = "https://graph.microsoft.com/v1.0/groups/$GroupId"
-                if ($Select.Count -gt 0) {
-                    $uri += "?`$select=$($Select -join ',')"
+        switch ($PSCmdlet.ParameterSetName) {
+            'ById' {
+                $baseUri = "$baseUri/$GroupId"
+            }
+            'BySearch' {
+                $filters = @()
+                if ($DisplayName) {
+                    $filters += "startsWith(displayName,'$DisplayName')"
                 }
-
-                Write-Verbose "Fetching Entra group by ID: $GroupId"
-                $invokeArgs['Uri'] = $uri
-                $response = Invoke-ToolkitGraphRequest @invokeArgs
-                return [pscustomobject]$response
-            }
-
-            $uri = "https://graph.microsoft.com/v1.0/groups"
-            $queryParameters = @()
-
-            $effectiveFilter = $Filter
-            if (-not [string]::IsNullOrWhiteSpace($DisplayName)) {
-                $escapedName = $DisplayName -replace "'", "''"
-                $displayNameFilter = "displayName eq '$escapedName'"
-                if (-not [string]::IsNullOrWhiteSpace($effectiveFilter)) {
-                    $effectiveFilter = "($effectiveFilter) and ($displayNameFilter)"
-                } else {
-                    $effectiveFilter = $displayNameFilter
+                if ($GroupType) {
+                    switch ($GroupType) {
+                        'Unified'             { $filters += "groupTypes/any(c:c eq 'Unified')" }
+                        'Security'            { $filters += "securityEnabled eq true and mailEnabled eq false" }
+                        'MailEnabledSecurity' { $filters += "securityEnabled eq true and mailEnabled eq true" }
+                        'Distribution'        { $filters += "securityEnabled eq false and mailEnabled eq true" }
+                    }
+                }
+                if ($filters.Count -gt 0) {
+                    $queryParams += "`$filter=$($filters -join ' and ')"
+                    $headers['ConsistencyLevel'] = 'eventual'
+                    $queryParams += "`$count=true"
                 }
             }
-
-            if (-not [string]::IsNullOrWhiteSpace($effectiveFilter)) {
-                $queryParameters += "`$filter=$([System.Web.HttpUtility]::UrlEncode($effectiveFilter))"
-            }
-
-            if ($Select.Count -gt 0) {
-                $queryParameters += "`$select=$($Select -join ',')"
-            }
-
-            if ($queryParameters.Count -gt 0) {
-                $uri += "?" + ($queryParameters -join '&')
-            }
-
-            Write-Verbose "Querying Entra groups from Graph URI: $uri"
-            $invokeArgs['Uri'] = $uri
-            $response = Invoke-ToolkitGraphRequest @invokeArgs
-
-            if ($null -ne $response -and $response.PSObject.Properties['value']) {
-                foreach ($item in $response.value) {
-                    [pscustomobject]$item
+            'ByFilter' {
+                if ($Filter) {
+                    $queryParams += "`$filter=$Filter"
+                    $headers['ConsistencyLevel'] = 'eventual'
+                    $queryParams += "`$count=true"
                 }
-            }
-            elseif ($null -ne $response) {
-                [pscustomobject]$response
             }
         }
-        catch {
-            throw "Failed to retrieve Entra group(s): $_"
+
+        # Construct complete Graph URL
+        $finalUri = $baseUri
+        if ($queryParams.Count -gt 0 -and $PSCmdlet.ParameterSetName -ne 'ById') {
+            $finalUri = "$baseUri?$( $queryParams -join '&' )"
         }
+
+        # Exact parameter splat matching Invoke-ToolkitGraphRequest
+        $requestParams = @{
+            Method   = 'GET'
+            Uri      = $finalUri
+            Headers  = $headers
+            AllPages = $All
+        }
+
+        if ($PSBoundParameters.ContainsKey('Config')) {
+            $requestParams['Config'] = $Config
+        }
+
+        Invoke-ToolkitGraphRequest @requestParams
     }
 }

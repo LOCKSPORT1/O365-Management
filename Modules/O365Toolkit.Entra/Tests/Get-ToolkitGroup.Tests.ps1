@@ -2,18 +2,16 @@ Describe 'Get-ToolkitGroup' {
     Context 'Parameter Validation & Request Building' {
         It 'queries groups via Graph endpoint with select parameters' {
             Mock Invoke-ToolkitGraphRequest {
-                return [pscustomobject]@{
-                    value = @(
-                        [pscustomobject]@{
-                            id              = 'group-guid-1'
-                            displayName     = 'Cloud Admins'
-                            description     = 'Global Cloud Administrators'
-                            groupTypes      = @()
-                            mailEnabled     = $false
-                            securityEnabled = $true
-                        }
-                    )
-                }
+                return @(
+                    [pscustomobject]@{
+                        id              = 'group-guid-1'
+                        displayName     = 'Cloud Admins'
+                        description     = 'Global Cloud Administrators'
+                        groupTypes      = @()
+                        mailEnabled     = $false
+                        securityEnabled = $true
+                    }
+                )
             } -ModuleName 'O365Toolkit.Entra'
 
             $dummyConfig = [pscustomobject]@{ TenantId = 'mock-tenant' }
@@ -42,6 +40,3 @@ Describe 'Get-ToolkitGroup' {
         }
     }
 }
-
-
-

@@ -1,87 +1,70 @@
 function Get-ToolkitGroup {
-    [CmdletBinding(DefaultParameterSetName = 'All')]
+    <#
+    .SYNOPSIS
+        Queries Entra ID groups via Microsoft Graph API.
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Query')]
     param(
-        [Parameter(ParameterSetName = 'ById', Mandatory = $true, ValueFromPipeline = $true)]
+        [Parameter(ParameterSetName = 'ByGroupId', Mandatory = $true, ValueFromPipeline = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$GroupId,
 
-        [Parameter(ParameterSetName = 'BySearch')]
+        [Parameter(ParameterSetName = 'Query')]
         [string]$DisplayName,
 
-        [Parameter(ParameterSetName = 'BySearch')]
-        [ValidateSet('Unified', 'Security', 'MailEnabledSecurity', 'Distribution')]
-        [string]$GroupType,
-
-        [Parameter(ParameterSetName = 'ByFilter')]
+        [Parameter(ParameterSetName = 'Query')]
         [string]$Filter,
 
-        [Parameter(ParameterSetName = 'All')]
-        [switch]$All,
+        [Parameter(ParameterSetName = 'Query')]
+        [Parameter(ParameterSetName = 'ByGroupId')]
+        [string[]]$Select = @('id', 'displayName', 'groupTypes', 'mailEnabled', 'securityEnabled', 'description'),
+
+        [Parameter(ParameterSetName = 'Query')]
+        [switch]$AllPages,
 
         [Parameter()]
-        [string[]]$Select = @('id', 'displayName', 'groupTypes', 'mailEnabled', 'securityEnabled', 'mail'),
-
-        [Parameter()]
-        [pscustomobject]$Config
+        [object]$Config
     )
 
     process {
-        $baseUri = "https://graph.microsoft.com/v1.0/groups"
-        $queryParams = @()
-        $headers = @{}
-
-        if ($Select) {
-            $queryParams += "`$select=$($Select -join ',')"
+        if (-not $PSBoundParameters.ContainsKey('Config') -or $null -eq $Config) {
+            $Config = @{ Environment = 'Global' }
         }
 
-        switch ($PSCmdlet.ParameterSetName) {
-            'ById' {
-                $baseUri = "$baseUri/$GroupId"
+        $queryParams = [System.Collections.Generic.List[string]]::new()
+
+        if ($PSCmdlet.ParameterSetName -eq 'ByGroupId') {
+            $uri = "groups/$GroupId"
+        }
+        else {
+            $uri = "groups"
+            $filterParts = [System.Collections.Generic.List[string]]::new()
+
+            if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+                $filterParts.Add("($Filter)")
             }
-            'BySearch' {
-                $filters = @()
-                if ($DisplayName) {
-                    $filters += "startsWith(displayName,'$DisplayName')"
-                }
-                if ($GroupType) {
-                    switch ($GroupType) {
-                        'Unified'             { $filters += "groupTypes/any(c:c eq 'Unified')" }
-                        'Security'            { $filters += "securityEnabled eq true and mailEnabled eq false" }
-                        'MailEnabledSecurity' { $filters += "securityEnabled eq true and mailEnabled eq true" }
-                        'Distribution'        { $filters += "securityEnabled eq false and mailEnabled eq true" }
-                    }
-                }
-                if ($filters.Count -gt 0) {
-                    $queryParams += "`$filter=$($filters -join ' and ')"
-                    $headers['ConsistencyLevel'] = 'eventual'
-                    $queryParams += "`$count=true"
-                }
+            if (-not [string]::IsNullOrWhiteSpace($DisplayName)) {
+                $filterParts.Add("displayName eq '$DisplayName'")
             }
-            'ByFilter' {
-                if ($Filter) {
-                    $queryParams += "`$filter=$Filter"
-                    $headers['ConsistencyLevel'] = 'eventual'
-                    $queryParams += "`$count=true"
-                }
+
+            if ($filterParts.Count -gt 0) {
+                $queryParams.Add('$filter=' + ($filterParts -join ' and '))
             }
         }
 
-        # Construct complete Graph URL
-        $finalUri = $baseUri
-        if ($queryParams.Count -gt 0 -and $PSCmdlet.ParameterSetName -ne 'ById') {
-            $finalUri = "$baseUri?$( $queryParams -join '&' )"
+        if ($Select -and $Select.Count -gt 0) {
+            $queryParams.Add('$select=' + ($Select -join ','))
         }
 
-        # Exact parameter splat matching Invoke-ToolkitGraphRequest
+        if ($queryParams.Count -gt 0) {
+            $uri += "?" + ($queryParams -join "&")
+        }
+
         $requestParams = @{
             Method   = 'GET'
-            Uri      = $finalUri
-            Headers  = $headers
-            AllPages = $All
-        }
-
-        if ($PSBoundParameters.ContainsKey('Config')) {
-            $requestParams['Config'] = $Config
+            Uri      = $uri
+            AllPages = $AllPages.IsPresent
+            Config   = $Config
         }
 
         Invoke-ToolkitGraphRequest @requestParams

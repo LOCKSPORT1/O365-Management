@@ -1,142 +1,78 @@
 function Get-ToolkitUser {
-    [CmdletBinding(DefaultParameterSetName = 'All')]
-    [OutputType([object])]
+    <#
+    .SYNOPSIS
+        Queries Entra ID users via Microsoft Graph API.
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Query')]
     param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [psobject]$Config,
-
-        [Parameter(
-            Mandatory,
-            ParameterSetName = 'ByUserPrincipalName'
-        )]
+        [Parameter(ParameterSetName = 'ByUPN', Mandatory = $true, ValueFromPipeline = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$UserPrincipalName,
 
-        [Parameter(
-            Mandatory,
-            ParameterSetName = 'ByDepartment'
-        )]
-        [ValidateNotNullOrEmpty()]
+        [Parameter(ParameterSetName = 'Query')]
         [string]$Department,
 
-        [Parameter(ParameterSetName = 'All')]
-        [Parameter(ParameterSetName = 'ByDepartment')]
-        [switch]$LicensedOnly,
+        [Parameter(ParameterSetName = 'Query')]
+        [string]$Filter,
+
+        [Parameter(ParameterSetName = 'Query')]
+        [Parameter(ParameterSetName = 'ByUPN')]
+        [string[]]$Select = @('id', 'userPrincipalName', 'displayName', 'department', 'mail', 'assignedLicenses'),
+
+        [Parameter(ParameterSetName = 'Query')]
+        [switch]$All,
+
+        [Parameter(ParameterSetName = 'Query')]
+        [switch]$HasLicenses,
 
         [Parameter()]
-        [ValidateRange(1, 20)]
-        [int]$MaxAttempts = 4,
-
-        [Parameter()]
-        [ValidateRange(1, 300)]
-        [int]$MaximumRetryDelaySeconds = 60,
-
-        [Parameter()]
-        [switch]$PassThru
+        [object]$Config
     )
 
-    $selectProperties = @(
-        'id'
-        'displayName'
-        'userPrincipalName'
-        'mail'
-        'accountEnabled'
-        'userType'
-        'department'
-        'jobTitle'
-        'companyName'
-        'officeLocation'
-        'createdDateTime'
-        'assignedLicenses'
-    )
-
-    $selectQuery = $selectProperties -join ','
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'ByUserPrincipalName' {
-            $escapedUpn = [uri]::EscapeDataString(
-                $UserPrincipalName
-            )
-
-            $uri = (
-                'https://graph.microsoft.com/v1.0/users/' +
-                "${escapedUpn}?`$select=$selectQuery"
-            )
-
-            $request = Invoke-ToolkitGraphRequest `
-                -Method GET `
-                -Uri $uri `
-                -Config $Config `
-                -MaxAttempts $MaxAttempts `
-                -MaximumRetryDelaySeconds $MaximumRetryDelaySeconds `
-                -PassThru
-
-            if ($PassThru) {
-                return [pscustomobject]@{
-                    Success             = $request.Success
-                    QueryType           = 'UserPrincipalName'
-                    UserPrincipalName   = $UserPrincipalName
-                    DurationMs          = $request.DurationMs
-                    RecordCount         = 1
-                    Data                = $request.Data
-                }
-            }
-
-            return $request.Data
+    process {
+        if (-not $PSBoundParameters.ContainsKey('Config') -or $null -eq $Config) {
+            $Config = @{ Environment = 'Global' }
         }
 
-        default {
-            $uri = (
-                'https://graph.microsoft.com/v1.0/users' +
-                "?`$select=$selectQuery"
-            )
+        $queryParams = [System.Collections.Generic.List[string]]::new()
 
-            $request = Invoke-ToolkitGraphRequest `
-                -Method GET `
-                -Uri $uri `
-                -Config $Config `
-                -AllPages `
-                -MaxAttempts $MaxAttempts `
-                -MaximumRetryDelaySeconds $MaximumRetryDelaySeconds `
-                -PassThru
-
-            $users = @($request.Data)
-
-            if (
-                $PSCmdlet.ParameterSetName -eq 'ByDepartment'
-            ) {
-                $users = @(
-                    $users |
-                    Where-Object {
-                        $_.department -eq $Department
-                    }
-                )
-            }
-
-            if ($LicensedOnly) {
-                $users = @(
-                    $users |
-                    Where-Object {
-                        @($_.assignedLicenses).Count -gt 0
-                    }
-                )
-            }
-
-            if ($PassThru) {
-                return [pscustomobject]@{
-                    Success      = $request.Success
-                    QueryType    = $PSCmdlet.ParameterSetName
-                    Department   = $Department
-                    LicensedOnly = [bool]$LicensedOnly
-                    DurationMs   = $request.DurationMs
-                    PageCount    = $request.PageCount
-                    RecordCount  = $users.Count
-                    Data         = $users
-                }
-            }
-
-            return $users
+        if ($PSCmdlet.ParameterSetName -eq 'ByUPN') {
+            $uri = "users/$UserPrincipalName"
         }
+        else {
+            $uri = "users"
+            $filterParts = [System.Collections.Generic.List[string]]::new()
+
+            if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+                $filterParts.Add("($Filter)")
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Department)) {
+                $filterParts.Add("department eq '$Department'")
+            }
+            if ($HasLicenses.IsPresent) {
+                $filterParts.Add("assignedLicenses/`$count ne 0")
+            }
+
+            if ($filterParts.Count -gt 0) {
+                $queryParams.Add('$filter=' + ($filterParts -join ' and '))
+            }
+        }
+
+        if ($Select -and $Select.Count -gt 0) {
+            $queryParams.Add('$select=' + ($Select -join ','))
+        }
+
+        if ($queryParams.Count -gt 0) {
+            $uri += "?" + ($queryParams -join "&")
+        }
+
+        $requestParams = @{
+            Method   = 'GET'
+            Uri      = $uri
+            AllPages = $All.IsPresent
+            Config   = $Config
+        }
+
+        Invoke-ToolkitGraphRequest @requestParams
     }
 }

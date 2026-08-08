@@ -9,7 +9,8 @@
     PowerShellVersion = '7.2'
     FunctionsToExport = @(
         'Get-ToolkitIntuneDevice',
-        'Get-ToolkitIntuneCompliance'
+        'Get-ToolkitIntuneCompliance',
+        'Get-ToolkitIntuneApp'
     )
     CmdletsToExport = @()
     VariablesToExport = @()

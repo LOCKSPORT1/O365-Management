@@ -14,7 +14,7 @@
 
     PowerShellVersion = '7.2'
 
-    FunctionsToExport = @('Get-ToolkitLicense', 'Get-ToolkitDevice', 
+    FunctionsToExport = @('Get-ToolkitRoleMember', 'Get-ToolkitRole', 'Get-ToolkitLicense', 'Get-ToolkitDevice', 
         'Get-ToolkitUser'
         'Get-ToolkitGroup'
 		'Get-ToolkitGroupMember'
@@ -41,6 +41,8 @@
         }
     }
 }
+
+
 
 
 

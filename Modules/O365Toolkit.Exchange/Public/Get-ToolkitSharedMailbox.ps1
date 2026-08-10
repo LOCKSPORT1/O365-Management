@@ -50,26 +50,23 @@ function Get-ToolkitSharedMailbox {
             else {
                 $queryParams.Add("\$filter=displayName eq '$Identity'")
             }
-            $uri = "users"
+            $uri = "v1.0/users"
         }
-        else {
-            $uri = "users"
+       else {
+            $uri = "v1.0/users"
             $filterParts = [System.Collections.Generic.List[string]]::new()
             
             if (-not [string]::IsNullOrWhiteSpace($Filter)) {
                 $filterParts.Add("($Filter)")
             }
             else {
-                $filterParts.Add("mailboxSettings/userType eq 'Shared'")
+                # Fallback to general user filtering or retrieve all users to inspect mailbox settings client-side
+                $filterParts.Add("accountEnabled eq true")
             }
 
             if ($filterParts.Count -gt 0) {
                 $queryParams.Add('$filter=' + ($filterParts -join ' and '))
             }
-        }
-
-        if ($Select -and $Select.Count -gt 0) {
-            $queryParams.Add('$select=' + ($Select -join ','))
         }
 
         if ($queryParams.Count -gt 0) {

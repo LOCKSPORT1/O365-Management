@@ -54,11 +54,11 @@ function Get-ToolkitIntuneDevice {
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
 
-        if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') {
-            $uri = "deviceManagement/managedDevices/$DeviceId"
+       if ($PSCmdlet.ParameterSetName -eq 'ByDeviceId') {
+            $uri = "v1.0/deviceManagement/managedDevices/$DeviceId"
         }
         else {
-            $uri = "deviceManagement/managedDevices"
+            $uri = "v1.0/deviceManagement/managedDevices"
             $filterParts = [System.Collections.Generic.List[string]]::new()
 
             if (-not [string]::IsNullOrWhiteSpace($Filter)) {

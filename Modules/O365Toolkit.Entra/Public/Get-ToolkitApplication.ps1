@@ -30,41 +30,38 @@ function Get-ToolkitApplication {
         [ValidateNotNullOrEmpty()]
         [string]$AppId,
 
-        [Parameter(ParameterSetName = 'Query')]
+        [Parameter(ParameterSetName = 'Query', Mandatory = $false)]
         [string]$DisplayName,
 
-        [Parameter(ParameterSetName = 'Query')]
+        [Parameter(ParameterSetName = 'Query', Mandatory = $false)]
         [string]$Filter,
 
-        [Parameter(ParameterSetName = 'Query')]
-        [Parameter(ParameterSetName = 'ByApplicationId')]
-        [Parameter(ParameterSetName = 'ByAppId')]
+        [Parameter(ParameterSetName = 'Query', Mandatory = $false)]
         [string[]]$Select = @('id', 'appId', 'displayName', 'createdDateTime', 'keyCredentials', 'passwordCredentials', 'requiredResourceAccess'),
 
-        [Parameter(ParameterSetName = 'Query')]
+        [Parameter(ParameterSetName = 'Query', Mandatory = $false)]
         [switch]$All,
 
-        [Parameter()]
+        [Parameter(Mandatory = $false)]
         [object]$Config
     )
 
     process {
-        # Fallback safeguard against parameter prompting loops
-        if (-not $PSBoundParameters.ContainsKey('Config') -or $null -eq $Config) {
+        if (-not $Config -or $Config -isnot [hashtable] -and $Config -isnot [pscustomobject]) {
             $Config = @{ Environment = 'Global' }
         }
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
 
         if ($PSCmdlet.ParameterSetName -eq 'ByApplicationId') {
-            $uri = "applications/$ApplicationId"
+            $uri = "v1.0/applications/$ApplicationId"
         }
         elseif ($PSCmdlet.ParameterSetName -eq 'ByAppId') {
             $queryParams.Add("\$filter=appId eq '$AppId'")
-            $uri = "applications"
+            $uri = "v1.0/applications"
         }
         else {
-            $uri = "applications"
+            $uri = "v1.0/applications"
             $filterParts = [System.Collections.Generic.List[string]]::new()
 
             if (-not [string]::IsNullOrWhiteSpace($Filter)) {
@@ -90,8 +87,11 @@ function Get-ToolkitApplication {
         $requestParams = @{
             Method   = 'GET'
             Uri      = $uri
-            AllPages = $All.IsPresent
             Config   = $Config
+        }
+
+        if ($All.IsPresent) {
+            $requestParams.All = $true
         }
 
         Invoke-ToolkitGraphRequest @requestParams

@@ -46,10 +46,10 @@ function Get-ToolkitLicense {
 
         if ($PSCmdlet.ParameterSetName -eq 'BySkuId') {
             $queryParams.Add("\$filter=skuId eq '$SkuId'")
-            $uri = "subscribedSkus"
+            $uri = "v1.0/subscribedSkus"
         }
         else {
-            $uri = "subscribedSkus"
+            $uri = "v1.0/subscribedSkus"
             $filterParts = [System.Collections.Generic.List[string]]::new()
 
             if (-not [string]::IsNullOrWhiteSpace($Filter)) {

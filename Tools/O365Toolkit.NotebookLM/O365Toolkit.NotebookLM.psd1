@@ -1,7 +1,7 @@
 @{
     RootModule = 'O365Toolkit.NotebookLM.psm1'
 
-    ModuleVersion = '0.1.0'
+    ModuleVersion = '0.3.0'
 
     GUID = '9492d28a-f11a-42b1-a831-a4e26800d144'
 

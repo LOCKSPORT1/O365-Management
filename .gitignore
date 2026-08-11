@@ -10,4 +10,5 @@ PrimaryUserAudit_Share/Reports/
 # VS Code
 .vscode/
 
-Rollback/
+Rollback/SESSION_MARKER_PRIVATE.md
+PrivateExports/

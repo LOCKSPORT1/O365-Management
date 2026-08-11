@@ -2,14 +2,28 @@ function New-ToolkitProjectIndex {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [pscustomobject]$Inventory,
+        [Parameter(Mandatory = $false)]
+        [string]$OutputDirectory,
 
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
+        [Parameter(Mandatory = $false)]
+        [string]$RepositoryPath,
+
+        [Parameter(Mandatory = $false)]
         [string]$OutputPath
     )
+
+    # Safe fallback resolution for paths
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $OutputPath = $OutputDirectory
+    }
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $OutputPath = $PSScriptRoot
+    }
+
+    # If $OutputPath is passed as a directory or does not end with .md, safely append the target filename
+    if ((Test-Path -LiteralPath $OutputPath -PathType Container) -or ($OutputPath -notmatch '\.md$')) {
+        $OutputPath = Join-Path -Path $OutputPath -ChildPath 'Project_Index.md'
+    }
 
     $outputDirectory = Split-Path `
         -Path $OutputPath `
@@ -42,53 +56,53 @@ function New-ToolkitProjectIndex {
         }
     )
 
-   $functionEntries = foreach ($file in $powerShellFiles) {
-    $tokens = $null
-    $parseErrors = $null
+    $functionEntries = foreach ($file in $powerShellFiles) {
+        $tokens = $null
+        $parseErrors = $null
 
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
-        $file.FullName,
-        [ref]$tokens,
-        [ref]$parseErrors
-    )
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $file.FullName,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
 
-    if ($parseErrors.Count -gt 0) {
-        continue
+        if ($parseErrors.Count -gt 0) {
+            continue
+        }
+
+        $functionAsts = $ast.FindAll(
+        {
+            param($node)
+
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        },
+        $true)
+
+        foreach ($functionAst in $functionAsts) {
+            $visibility = if (
+                $file.RelativePath -match '(?i)(^|[\\/])Public([\\/]|$)'
+            ) {
+                'Public'
+            }
+            elseif (
+                $file.RelativePath -match '(?i)(^|[\\/])Private([\\/]|$)'
+            ) {
+                'Private'
+            }
+            else {
+                'Unclassified'
+            }
+
+            [pscustomobject]@{
+                Name         = $functionAst.Name
+                Visibility   = $visibility
+                RelativePath = $file.RelativePath
+                StartLine    = $functionAst.Extent.StartLineNumber
+                EndLine      = $functionAst.Extent.EndLineNumber
+            }
+        }
     }
 
-    $functionAsts = $ast.FindAll(
-    {
-        param($node)
-
-        $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
-    },
-    $true
-)
-
-    foreach ($functionAst in $functionAsts) {
-        $visibility = if (
-            $file.RelativePath -match '(?i)(^|[\\/])Public([\\/]|$)'
-        ) {
-            'Public'
-        }
-        elseif (
-            $file.RelativePath -match '(?i)(^|[\\/])Private([\\/]|$)'
-        ) {
-            'Private'
-        }
-        else {
-            'Unclassified'
-        }
-
-        [pscustomobject]@{
-            Name         = $functionAst.Name
-            Visibility   = $visibility
-            RelativePath = $file.RelativePath
-            StartLine    = $functionAst.Extent.StartLineNumber
-            EndLine      = $functionAst.Extent.EndLineNumber
-        }
-    }
-}
     $moduleFiles = @(
         $files |
         Where-Object {

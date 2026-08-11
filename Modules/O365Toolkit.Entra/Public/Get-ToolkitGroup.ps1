@@ -1,29 +1,26 @@
-function Get-ToolkitUser {
+function Get-ToolkitGroup {
     <#
     .SYNOPSIS
-        Queries Entra ID users via Microsoft Graph API.
+        Queries Entra ID groups via Microsoft Graph API.
     #>
     [CmdletBinding(DefaultParameterSetName = 'Query')]
     param(
-        [Parameter(ParameterSetName = 'ByUPN', Mandatory = $true, ValueFromPipeline = $true)]
+        [Parameter(ParameterSetName = 'ByGroupId', Mandatory = $true, ValueFromPipeline = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$UserPrincipalName,
+        [string]$GroupId,
 
         [Parameter(ParameterSetName = 'Query')]
-        [string]$Department,
+        [string]$DisplayName,
 
         [Parameter(ParameterSetName = 'Query')]
         [string]$Filter,
 
         [Parameter(ParameterSetName = 'Query')]
-        [Parameter(ParameterSetName = 'ByUPN')]
-        [string[]]$Select = @('id', 'userPrincipalName', 'displayName', 'department', 'mail', 'assignedLicenses'),
+        [Parameter(ParameterSetName = 'ByGroupId')]
+        [string[]]$Select = @('id', 'displayName', 'groupTypes', 'mailEnabled', 'securityEnabled', 'description'),
 
         [Parameter(ParameterSetName = 'Query')]
-        [switch]$All,
-
-        [Parameter(ParameterSetName = 'Query')]
-        [switch]$HasLicenses,
+        [switch]$AllPages,
 
         [Parameter()]
         [object]$Config
@@ -36,21 +33,18 @@ function Get-ToolkitUser {
 
         $queryParams = [System.Collections.Generic.List[string]]::new()
 
-        if ($PSCmdlet.ParameterSetName -eq 'ByUPN') {
-            $uri = "users/$UserPrincipalName"
+        if ($PSCmdlet.ParameterSetName -eq 'ByGroupId') {
+            $uri = "groups/$GroupId"
         }
         else {
-            $uri = "users"
+            $uri = "groups"
             $filterParts = [System.Collections.Generic.List[string]]::new()
 
             if (-not [string]::IsNullOrWhiteSpace($Filter)) {
                 $filterParts.Add("($Filter)")
             }
-            if (-not [string]::IsNullOrWhiteSpace($Department)) {
-                $filterParts.Add("department eq '$Department'")
-            }
-            if ($HasLicenses.IsPresent) {
-                $filterParts.Add("assignedLicenses/`$count ne 0")
+            if (-not [string]::IsNullOrWhiteSpace($DisplayName)) {
+                $filterParts.Add("displayName eq '$DisplayName'")
             }
 
             if ($filterParts.Count -gt 0) {
@@ -69,7 +63,7 @@ function Get-ToolkitUser {
         $requestParams = @{
             Method   = 'GET'
             Uri      = $uri
-            AllPages = $All.IsPresent
+            AllPages = $AllPages.IsPresent
             Config   = $Config
         }
 

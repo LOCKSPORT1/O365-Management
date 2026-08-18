@@ -8,6 +8,7 @@ function Copy-ToolkitNotebookRepositorySnapshot {
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
+        [Alias('Path')]
         [string]$DestinationPath
     )
 

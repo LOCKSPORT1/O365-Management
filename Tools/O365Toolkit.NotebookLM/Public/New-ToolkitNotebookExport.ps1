@@ -110,6 +110,13 @@ if ($rawBooks) { $books = @($rawBooks) }
     if (Test-Path -Path $zipPath) { Remove-Item -Path $zipPath -Force }
     Compress-Archive -Path "$exportStagingDir\*" -DestinationPath $zipPath -Force
 
+    # Consolidate every artifact into the stable master book.
+    $masterScript = Join-Path -Path $RepositoryPath -ChildPath 'Tools\New-ToolkitMasterBook.ps1'
+    if (Test-Path -LiteralPath $masterScript) {
+        Write-Host '[*] Updating master book...' -ForegroundColor Yellow
+        $null = & $masterScript -StagingPath $exportStagingDir -RepositoryPath $RepositoryPath
+    }
+
     $allExportedFiles = Get-ChildItem -Path $exportStagingDir -Recurse -File
 
     Write-Host "`nPASS: Knowledge export bundle generated successfully!" -ForegroundColor Green

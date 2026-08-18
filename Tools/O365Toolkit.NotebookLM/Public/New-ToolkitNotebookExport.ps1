@@ -66,6 +66,20 @@ function New-ToolkitNotebookExport {
         if ($pesterResult.FailedCount -gt 0) {
             throw "Export aborted: $($pesterResult.FailedCount) test(s) failed."
         }
+
+        # R3.9 gate: statement-expression assignments that collapse to $null.
+        $r39Scanner = Join-Path -Path $RepositoryPath -ChildPath 'Tools\Find-ToolkitStatementAssignment.ps1'
+        if (Test-Path -LiteralPath $r39Scanner) {
+            Write-Host 'Running R3.9 statement-assignment gate...' -ForegroundColor Yellow
+            $r39 = @(& $r39Scanner -RepositoryPath $RepositoryPath -MinimumRisk HIGH -PassThru)
+            if ($r39.Count -gt 0) {
+                $detail = ($r39 | ForEach-Object { "$($_.File):$($_.Line) $($_.Variable)" }) -join "`n  "
+                throw "Export aborted: $($r39.Count) R3.9 violation(s).`n  $detail`nRun Tools\Repair-ToolkitStatementAssignment.ps1 -WhatIf"
+            }
+        }
+        else {
+            Write-Warning "R3.9 scanner not found at $r39Scanner - gate skipped."
+        }
     }
 
     $timestamp = (Get-Date).ToString('yyyyMMdd_HHmmss')

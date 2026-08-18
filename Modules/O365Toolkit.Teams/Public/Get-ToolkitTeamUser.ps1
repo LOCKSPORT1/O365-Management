@@ -1,3 +1,29 @@
+<#
+.SYNOPSIS
+    Retrieves members and owners of a specified Microsoft Team.
+.DESCRIPTION
+    Queries Microsoft Graph for members and owners assigned to a specific Microsoft Team / Group ID.
+    Supports filtering by role (owner, member, guest) and server-side paging.
+.PARAMETER TeamId
+    The unique GUID of the Microsoft Team.
+.PARAMETER Role
+    Optional filter for user roles: 'owner', 'member', or 'guest'.
+.PARAMETER Top
+    The maximum number of items to return per page.
+.PARAMETER AllPages
+    Retrieves all pages of results automatically via @odata.nextLink.
+.PARAMETER Config
+    Optional configuration hashtable containing environment settings.
+.OUTPUTS
+    [pscustomobject]
+.EXAMPLE
+    Get-ToolkitTeamUser -TeamId '00000000-0000-0000-0000-000000000000'
+.EXAMPLE
+    Get-ToolkitTeamUser -TeamId '00000000-0000-0000-0000-000000000000' -Role 'owner'
+.NOTES
+    Required Microsoft Graph Scopes:
+      - TeamMember.Read.All or GroupMember.Read.All or Directory.Read.All
+#>
 function Get-ToolkitTeamUser {
     [CmdletBinding()]
     [OutputType([pscustomobject])]

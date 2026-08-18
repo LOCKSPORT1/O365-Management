@@ -57,7 +57,7 @@ catch {
     return
 }
 
-$report = foreach ($g in $groups) {
+$report = @(foreach ($g in $groups) {
     try {
         $owners = Get-MgGroupOwner -GroupId $g.Id -All
     }
@@ -87,7 +87,7 @@ $report = foreach ($g in $groups) {
             GroupId      = $g.Id
         }
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) ownerless group(s) to $ExportPath" -ForegroundColor Green

@@ -39,7 +39,7 @@ $devices = Get-MgDeviceManagementManagedDevice -All
 
 $staleCutoff = (Get-Date).AddDays(-$StaleThresholdDays)
 
-$report = foreach ($d in $devices) {
+$report = @(foreach ($d in $devices) {
     [PSCustomObject]@{
         DeviceName        = $d.DeviceName
         PrimaryUser       = $d.UserPrincipalName
@@ -57,7 +57,7 @@ $report = foreach ($d in $devices) {
         AzureADDeviceId   = $d.AzureAdDeviceId
         IntuneDeviceId    = $d.Id
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) devices to $ExportPath" -ForegroundColor Green

@@ -90,7 +90,7 @@ if (-not $IncludeDisabledAccounts) {
     }
 }
 
-$report = foreach ($u in $regDetails) {
+$report = @(foreach ($u in $regDetails) {
     if ($enabledMap -and $enabledMap.ContainsKey($u.Id) -and ($enabledMap[$u.Id] -eq $false)) {
         continue
     }
@@ -106,7 +106,7 @@ $report = foreach ($u in $regDetails) {
         MethodsRegistered = ($u.MethodsRegistered -join "; ")
         Flag           = if (-not $u.IsMfaRegistered) { "NOT_REGISTERED" } elseif ($weakOnly) { "WEAK_METHOD_ONLY" } else { "OK" }
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) user(s) to $ExportPath" -ForegroundColor Green

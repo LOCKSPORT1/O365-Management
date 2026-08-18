@@ -65,7 +65,7 @@ catch {
 }
 
 $now = Get-Date
-$report = foreach ($app in $apps) {
+$report = @(foreach ($app in $apps) {
     foreach ($cred in $app.PasswordCredentials) {
         $daysLeft = ($cred.EndDateTime - $now).Days
         [PSCustomObject]@{
@@ -90,7 +90,7 @@ $report = foreach ($app in $apps) {
             Status        = if ($daysLeft -lt 0) { "EXPIRED" } elseif ($daysLeft -le $WarningThresholdDays) { "EXPIRING_SOON" } else { "OK" }
         }
     }
-}
+})
 
 $report | Sort-Object DaysRemaining | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) credential(s) to $ExportPath" -ForegroundColor Green

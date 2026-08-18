@@ -1,218 +1,71 @@
 function New-ToolkitFunctionReference {
     [CmdletBinding()]
-    [OutputType([pscustomobject])]
+    [OutputType([string])]
     param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [pscustomobject]$Inventory,
-
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory = $false, Position = 0)]
+        [Alias('Path')]
         [ValidateNotNullOrEmpty()]
-        [string]$OutputPath
+        [string]$DestinationPath,
+
+        [Parameter(Mandatory = $false)]
+        [string]$RepositoryPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [hashtable]$Config = @{ Environment = 'Global' }
     )
 
-    $outputDirectory = Split-Path `
-        -Path $OutputPath `
-        -Parent
-
-    if ([string]::IsNullOrWhiteSpace($outputDirectory)) {
-        throw 'OutputPath must include a parent directory.'
+    if (-not $Config) { $Config = @{ Environment = 'Global' } }
+    if (-not $RepositoryPath) { $RepositoryPath = (Get-Location).Path }
+    if (-not $DestinationPath) {
+        $DestinationPath = Join-Path -Path $RepositoryPath -ChildPath 'PrivateExports\Function_Reference.md'
     }
 
-    if (-not (Test-Path -LiteralPath $outputDirectory)) {
-        New-Item `
-            -Path $outputDirectory `
-            -ItemType Directory `
-            -Force `
-            -ErrorAction Stop |
-            Out-Null
+    $parentDir = [System.IO.Path]::GetDirectoryName($DestinationPath)
+    if ($parentDir -and -not (Test-Path -Path $parentDir)) {
+        $null = New-Item -ItemType Directory -Path $parentDir -Force
     }
 
-    $powerShellFiles = @(
-        $Inventory.IncludedFiles |
-        Where-Object {
-            $_.Extension -in '.ps1', '.psm1'
-        }
-    )
+    $sb = [System.Text.StringBuilder]::new()
+    $null = $sb.AppendLine('# O365-Management Function Reference')
+    $null = $sb.AppendLine()
+    $null = $sb.AppendLine("**Generated:** $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))")
+    $null = $sb.AppendLine()
+    $null = $sb.AppendLine('---')
+    $null = $sb.AppendLine()
 
-    $functionReferences = foreach ($file in $powerShellFiles) {
+    $scripts = Get-ChildItem -Path $RepositoryPath -Filter '*.ps1' -Recurse |
+        Where-Object { $_.FullName -notmatch '[\\/]Tests[\\/]' -and $_.FullName -notmatch '[\\/]PrivateExports[\\/]' }
+
+    foreach ($script in $scripts) {
+        $relPath = $script.FullName.Substring($RepositoryPath.Length).TrimStart('\', '/')
+        $content = Get-Content -Path $script.FullName -Raw
+
         $tokens = $null
-        $parseErrors = $null
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$errors)
+        $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
 
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
-            $file.FullName,
-            [ref]$tokens,
-            [ref]$parseErrors
-        )
+        foreach ($fn in $functions) {
+            $null = $sb.AppendLine("## $($fn.Name)")
+            $null = $sb.AppendLine("- **Source File:** ``$relPath``")
 
-        if ($parseErrors.Count -gt 0) {
-            continue
-        }
-
-        $functionAsts = $ast.FindAll(
-            {
-                param($node)
-
-                $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
-            },
-            $true
-        )
-
-        foreach ($functionAst in $functionAsts) {
-            $visibility = if (
-                $file.RelativePath -match '(?i)(^|[\\/])Public([\\/]|$)'
-            ) {
-                'Public'
-            }
-            elseif (
-                $file.RelativePath -match '(?i)(^|[\\/])Private([\\/]|$)'
-            ) {
-                'Private'
-            }
-            else {
-                'Unclassified'
-            }
-
-            $parameterNames = @()
-
-            if ($null -ne $functionAst.Body.ParamBlock) {
-                $parameterNames = @(
-                    $functionAst.Body.ParamBlock.Parameters |
-                    ForEach-Object {
-                        $_.Name.VariablePath.UserPath
-                    }
-                )
-            }
-
-            $outputTypes = @()
-
-            if ($null -ne $functionAst.Body.ParamBlock) {
-                $outputTypes = @(
-                    $functionAst.Body.ParamBlock.Attributes |
-                    Where-Object {
-                        $_.TypeName.FullName -eq 'OutputType'
-                    } |
-                    ForEach-Object {
-                        $_.PositionalArguments.Extent.Text
-                    }
-                )
-            }
-
-            $synopsis = 'No synopsis is currently available.'
-
-            $helpComment = $functionAst.GetHelpContent()
-
-            if (
-                $null -ne $helpComment -and
-                -not [string]::IsNullOrWhiteSpace($helpComment.Synopsis)
-            ) {
-                $synopsis = $helpComment.Synopsis.Trim()
-            }
-
-            [pscustomobject]@{
-                Name         = $functionAst.Name
-                Visibility   = $visibility
-                RelativePath = $file.RelativePath
-                StartLine    = $functionAst.Extent.StartLineNumber
-                EndLine      = $functionAst.Extent.EndLineNumber
-                Parameters   = $parameterNames
-                OutputTypes  = $outputTypes
-                Synopsis     = $synopsis
-            }
-        }
-    }
-
-    $generatedAt = Get-Date `
-        -Format 'yyyy-MM-dd HH:mm:ss zzz'
-
-    $referenceSections = foreach (
-        $function in (
-            $functionReferences |
-            Sort-Object Visibility, Name, RelativePath
-        )
-    ) {
-        $parameterText = if (
-            @($function.Parameters).Count -gt 0
-        ) {
-            @(
-                $function.Parameters |
-                ForEach-Object {
-                    "- ``-$_``"
+            $paramNames = @()
+            if ($fn.Body.ParamBlock -and $fn.Body.ParamBlock.Parameters) {
+                foreach ($p in $fn.Body.ParamBlock.Parameters) {
+                    $paramNames += "-``$($p.Name.VariablePath.UserPath)``"
                 }
-            ) -join [environment]::NewLine
+            }
+
+            if ($paramNames.Count -gt 0) {
+                $null = $sb.AppendLine("- **Parameters:** $($paramNames -join ', ')")
+            } else {
+                $null = $sb.AppendLine('- **Parameters:** None')
+            }
+            $null = $sb.AppendLine()
         }
-        else {
-            'No declared parameters.'
-        }
-
-        $outputTypeText = if (
-            @($function.OutputTypes).Count -gt 0
-        ) {
-            @(
-                $function.OutputTypes |
-                ForEach-Object {
-                    "- ``$_``"
-                }
-            ) -join [environment]::NewLine
-        }
-        else {
-            'No OutputType attribute was detected.'
-        }
-
-@"
-## $($function.Name)
-
-- Visibility: $($function.Visibility)
-- Source: ``$($function.RelativePath)``
-- Lines: $($function.StartLine)-$($function.EndLine)
-
-### Synopsis
-
-$($function.Synopsis)
-
-### Parameters
-
-$parameterText
-
-### Declared Output Types
-
-$outputTypeText
-"@
     }
 
-    $content = @"
-# O365 Management Toolkit Function Reference
-
-Generated: $generatedAt
-
-Total functions documented: $(@($functionReferences).Count)
-
-$(
-    $referenceSections -join (
-        [environment]::NewLine +
-        [environment]::NewLine
-    )
-)
-"@
-
-    Set-Content `
-        -LiteralPath $OutputPath `
-        -Value $content.TrimEnd() `
-        -Encoding utf8 `
-        -ErrorAction Stop
-
-    return [pscustomobject]@{
-        Success              = $true
-        OutputPath           = $OutputPath
-        FunctionCount        = @($functionReferences).Count
-        PublicFunctionCount  = @(
-            $functionReferences |
-            Where-Object Visibility -eq 'Public'
-        ).Count
-        PrivateFunctionCount = @(
-            $functionReferences |
-            Where-Object Visibility -eq 'Private'
-        ).Count
-        GeneratedAt          = $generatedAt
-    }
+    Set-Content -Path $DestinationPath -Value $sb.ToString() -Encoding utf8 -Force
+    return $DestinationPath
 }

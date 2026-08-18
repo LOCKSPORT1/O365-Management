@@ -79,7 +79,7 @@ catch {
     return
 }
 
-$report = foreach ($u in $users) {
+$report = @(foreach ($u in $users) {
     $lastSignIn = $u.SignInActivity.LastSignInDateTime
     $neverSignedIn = -not $lastSignIn
     $isStale = $neverSignedIn -or ($lastSignIn -lt $cutoff)
@@ -107,7 +107,7 @@ $report = foreach ($u in $users) {
         CreatedDate    = $u.CreatedDateTime
         ManagerStatus  = $managerStatus
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) stale account(s) to $ExportPath" -ForegroundColor Green

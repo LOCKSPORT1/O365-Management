@@ -7,9 +7,9 @@ BeforeAll {
     function global:Invoke-ToolkitGraphRequest {
         param([string]$Uri, [string]$Method, [switch]$AllPages, [hashtable]$Config)
     }
-    $corePsd1  = "C:\Users\jchri\Documents\GitHub\O365-Management\Core\O365Toolkit.Core.psd1"
+    $corePsd1  = "$(Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))\Core\O365Toolkit.Core.psd1"
     if (-not (Test-Path $corePsd1)) {
-        $corePsd1 = "C:\Users\jchristy\Documents\GitHub\O365-Management\Core\O365Toolkit.Core.psd1"
+        $corePsd1 = "$(Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))\Core\O365Toolkit.Core.psd1"
     }
     $entraPsd1 = Split-Path -Parent $PSScriptRoot | Join-Path -ChildPath "O365Toolkit.Entra.psd1"
 

@@ -54,11 +54,7 @@ function New-ToolkitModuleBooks {
         [CmdletBinding()]
         [OutputType([pscustomobject])]
         param(
-        [Parameter(Mandatory = $false)]
-        [string]$OutputDirectory,
-
-            [Parameter(Mandatory
-    )]
+            [Parameter(Mandatory)]
             [ValidateNotNullOrEmpty()]
             [string]$RelativePath
         )
@@ -133,11 +129,7 @@ function New-ToolkitModuleBooks {
         [CmdletBinding()]
         [OutputType([string])]
         param(
-        [Parameter(Mandatory = $false)]
-        [string]$OutputDirectory,
-
-            [Parameter(Mandatory
-    )]
+            [Parameter(Mandatory)]
             [string]$Extension
         )
 

@@ -2,28 +2,14 @@ function New-ToolkitProjectIndex {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $false)]
-        [string]$OutputDirectory,
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [pscustomobject]$Inventory,
 
-        [Parameter(Mandatory = $false)]
-        [string]$RepositoryPath,
-
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$OutputPath
     )
-
-    # Safe fallback resolution for paths
-    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-        $OutputPath = $OutputDirectory
-    }
-    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-        $OutputPath = $PSScriptRoot
-    }
-
-    # If $OutputPath is passed as a directory or does not end with .md, safely append the target filename
-    if ((Test-Path -LiteralPath $OutputPath -PathType Container) -or ($OutputPath -notmatch '\.md$')) {
-        $OutputPath = Join-Path -Path $OutputPath -ChildPath 'Project_Index.md'
-    }
 
     $outputDirectory = Split-Path `
         -Path $OutputPath `

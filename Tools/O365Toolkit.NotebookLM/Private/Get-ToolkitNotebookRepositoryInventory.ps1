@@ -40,6 +40,7 @@ function Get-ToolkitNotebookRepositoryInventory {
         'Export'
         'Output'
         'Results'
+        'PrivateExports'
         'Private-O365Toolkit-NotebookLM'
     )
 

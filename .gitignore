@@ -1,14 +1,20 @@
-# Generated Primary User Audit reports
-PrimaryUserAudit_Share/Reports/
-
-# PowerShell logs
-*.log
-
-# Temporary files
-*.tmp
-
-# VS Code
-.vscode/
-
-Rollback/SESSION_MARKER_PRIVATE.md
 PrivateExports/
+*.zip
+*.patch
+SESSION_MARKER_PRIVATE.md
+Commit-*.ps1
+README.txt
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.log
+*.transcript.txt
+test-results.xml
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

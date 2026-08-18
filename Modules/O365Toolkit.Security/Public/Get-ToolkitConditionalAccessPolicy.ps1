@@ -1,3 +1,34 @@
+<#
+.SYNOPSIS
+    Retrieves Microsoft Entra ID Conditional Access policies from Microsoft Graph.
+.DESCRIPTION
+    Queries the Microsoft Graph v1.0/identity/conditionalAccess/policies endpoint.
+    Supports querying all policies, retrieving an individual policy by PolicyId,
+    or filtering by displayName and policy state (enabled, disabled, enabledForReportingButNotEnforced).
+.PARAMETER PolicyId
+    The unique GUID identifier of the Conditional Access policy.
+.PARAMETER DisplayName
+    Filter policies by exact or prefix display name.
+.PARAMETER State
+    Filter policies by state: 'enabled', 'disabled', or 'enabledForReportingButNotEnforced'.
+.PARAMETER Top
+    The maximum number of items to return in a single page.
+.PARAMETER AllPages
+    Retrieves all pages of results automatically via @odata.nextLink.
+.PARAMETER Config
+    Optional configuration hashtable containing environment settings.
+.OUTPUTS
+    [pscustomobject]
+.EXAMPLE
+    Get-ToolkitConditionalAccessPolicy -AllPages
+.EXAMPLE
+    Get-ToolkitConditionalAccessPolicy -PolicyId '00000000-0000-0000-0000-000000000000'
+.EXAMPLE
+    Get-ToolkitConditionalAccessPolicy -State 'enabled'
+.NOTES
+    Required Microsoft Graph Scopes:
+      - Policy.Read.All or Policy.Read.ConditionalAccess
+#>
 function Get-ToolkitConditionalAccessPolicy {
     [CmdletBinding(DefaultParameterSetName = 'List')]
     [OutputType([pscustomobject])]

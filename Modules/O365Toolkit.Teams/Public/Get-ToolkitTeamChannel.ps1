@@ -1,3 +1,30 @@
+<#
+.SYNOPSIS
+    Retrieves channels for a specified Microsoft Team.
+.DESCRIPTION
+    Queries Microsoft Graph for channels belonging to a specified Team/Group ID.
+    Supports fetching all channels, retrieving a specific channel by ChannelId,
+    or filtering by displayName / membershipType (standard, private, shared).
+.PARAMETER TeamId
+    The unique GUID of the Microsoft Team.
+.PARAMETER ChannelId
+    The unique channel ID (e.g., '19:...@thread.tacv2').
+.PARAMETER DisplayName
+    Filter channels by display name.
+.PARAMETER MembershipType
+    Filter channels by type: 'standard', 'private', or 'shared'.
+.PARAMETER Config
+    Optional configuration hashtable containing environment settings.
+.OUTPUTS
+    [pscustomobject]
+.EXAMPLE
+    Get-ToolkitTeamChannel -TeamId '00000000-0000-0000-0000-000000000000'
+.EXAMPLE
+    Get-ToolkitTeamChannel -TeamId '00000000-0000-0000-0000-000000000000' -MembershipType 'private'
+.NOTES
+    Required Microsoft Graph Scopes:
+      - Channel.ReadBasic.All or ChannelSettings.Read.All or Group.Read.All
+#>
 function Get-ToolkitTeamChannel {
     [CmdletBinding(DefaultParameterSetName = 'List')]
     [OutputType([pscustomobject])]

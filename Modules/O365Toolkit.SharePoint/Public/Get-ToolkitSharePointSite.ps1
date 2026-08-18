@@ -1,3 +1,34 @@
+<#
+.SYNOPSIS
+    Retrieves SharePoint Online site collections from Microsoft Graph.
+.DESCRIPTION
+    Queries the Microsoft Graph v1.0/sites endpoint.
+    Supports querying all sites, searching by site title/keyword, retrieving
+    the root tenant site, or retrieving a specific site by SiteId or hostname/relative path.
+.PARAMETER SiteId
+    The unique composite Site ID (e.g. 'contoso.sharepoint.com,guid1,guid2').
+.PARAMETER Search
+    Search keyword to match against site names and descriptions.
+.PARAMETER Root
+    Switch to query the root SharePoint site for the tenant.
+.PARAMETER Top
+    The maximum number of items to return in a single page.
+.PARAMETER AllPages
+    Retrieves all pages of results automatically via @odata.nextLink.
+.PARAMETER Config
+    Optional configuration hashtable containing environment settings.
+.OUTPUTS
+    [pscustomobject]
+.EXAMPLE
+    Get-ToolkitSharePointSite -AllPages
+.EXAMPLE
+    Get-ToolkitSharePointSite -Root
+.EXAMPLE
+    Get-ToolkitSharePointSite -Search 'Engineering'
+.NOTES
+    Required Microsoft Graph Scopes:
+      - Sites.Read.All
+#>
 function Get-ToolkitSharePointSite {
     [CmdletBinding(DefaultParameterSetName = 'List')]
     [OutputType([pscustomobject])]

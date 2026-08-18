@@ -1,3 +1,33 @@
+<#
+.SYNOPSIS
+    Retrieves directory audit log records from Microsoft Graph.
+.DESCRIPTION
+    Queries the Microsoft Graph v1.0/auditLogs/directoryAudits endpoint.
+    Supports filtering by category, initiatedBy UPN/App, and start/end time windows.
+.PARAMETER Category
+    The category of directory audit events (e.g., 'UserManagement', 'GroupManagement', 'ApplicationManagement').
+.PARAMETER InitiatedBy
+    Filter audit events initiated by a specific User Principal Name or Service Principal Name.
+.PARAMETER StartTime
+    Filter events occurring on or after this timestamp.
+.PARAMETER EndTime
+    Filter events occurring on or before this timestamp.
+.PARAMETER Top
+    The maximum number of audit entries to return per page.
+.PARAMETER AllPages
+    Retrieves all pages of results automatically via @odata.nextLink.
+.PARAMETER Config
+    Optional configuration hashtable containing environment settings.
+.OUTPUTS
+    [pscustomobject]
+.EXAMPLE
+    Get-ToolkitAuditLogEntry -Category 'UserManagement' -Top 50
+.EXAMPLE
+    Get-ToolkitAuditLogEntry -StartTime (Get-Date).AddDays(-7) -AllPages
+.NOTES
+    Required Microsoft Graph Scopes:
+      - AuditLog.Read.All or Directory.Read.All
+#>
 function Get-ToolkitAuditLogEntry {
     [CmdletBinding()]
     [OutputType([pscustomobject])]

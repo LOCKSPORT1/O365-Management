@@ -50,12 +50,17 @@ function New-ToolkitNotebookExport {
             Import-Module -Name $coreManifest -Force -ErrorAction SilentlyContinue
         }
 
-        $testPaths = @(
-            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Entra\Tests')
-            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Teams\Tests')
-            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Security\Tests')
-            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.SharePoint\Tests')
-        ) | Where-Object { Test-Path $_ }
+        # Enumerate every module Tests folder plus Core, so a new module is
+        # covered automatically rather than needing this list updated.
+        $modulesRoot = Join-Path -Path $RepositoryPath -ChildPath 'Modules'
+        $testPaths = @()
+        if (Test-Path -LiteralPath $modulesRoot) {
+            $testPaths = @(Get-ChildItem -LiteralPath $modulesRoot -Directory |
+                ForEach-Object { Join-Path -Path $_.FullName -ChildPath 'Tests' })
+        }
+        $coreTests = Join-Path -Path $RepositoryPath -ChildPath 'Core\Tests'
+        if (Test-Path -LiteralPath $coreTests) { $testPaths += $coreTests }
+        $testPaths = @($testPaths | Where-Object { Test-Path -LiteralPath $_ })
 
         $pesterConfig = [PesterConfiguration]::Default
         $pesterConfig.Run.Path = $testPaths

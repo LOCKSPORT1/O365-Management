@@ -65,7 +65,7 @@ catch {
     return
 }
 
-$report = foreach ($mbx in $mailboxes) {
+$report = @(foreach ($mbx in $mailboxes) {
     try {
         $stats = Get-MailboxStatistics -Identity $mbx.PrimarySmtpAddress
     }
@@ -99,7 +99,7 @@ $report = foreach ($mbx in $mailboxes) {
         ArchiveSize    = $archiveInfo
         Flag           = if ($percentUsed -ge $WarningPercentThreshold) { "WARNING" } else { "OK" }
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) mailbox(es) to $ExportPath" -ForegroundColor Green

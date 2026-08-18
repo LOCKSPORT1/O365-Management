@@ -1,35 +1,3 @@
-# Modules/O365Toolkit.SharePoint/Public/Get-ToolkitSharePointSite.ps1
-<#
-.SYNOPSIS
-    Retrieves SharePoint Online site collections from Microsoft Graph.
-.DESCRIPTION
-    Queries the Microsoft Graph v1.0/sites endpoint.
-    Supports querying all sites, searching by site title/keyword, retrieving
-    the root tenant site, or retrieving a specific site by SiteId or hostname/relative path.
-.PARAMETER SiteId
-    The unique composite Site ID (e.g. 'contoso.sharepoint.com,guid1,guid2').
-.PARAMETER Search
-    Search keyword to match against site names and descriptions.
-.PARAMETER Root
-    Switch to query the root SharePoint site for the tenant.
-.PARAMETER Top
-    The maximum number of items to return in a single page.
-.PARAMETER AllPages
-    Retrieves all pages of results automatically via @odata.nextLink.
-.PARAMETER Config
-    Optional configuration hashtable containing environment settings.
-.OUTPUTS
-    [pscustomobject]
-.EXAMPLE
-    Get-ToolkitSharePointSite -AllPages
-.EXAMPLE
-    Get-ToolkitSharePointSite -Root
-.EXAMPLE
-    Get-ToolkitSharePointSite -Search 'Engineering'
-.NOTES
-    Required Microsoft Graph Scopes:
-      - Sites.Read.All
-#>
 function Get-ToolkitSharePointSite {
     [CmdletBinding(DefaultParameterSetName = 'List')]
     [OutputType([pscustomobject])]
@@ -57,42 +25,24 @@ function Get-ToolkitSharePointSite {
         [hashtable]$Config = @{ Environment = 'Global' }
     )
 
-    # ---------------------------------------------------------------------------
-    # CHANGE: 2026-08-18 - Initial creation of Get-ToolkitSharePointSite
-    # adhering to Graph API v1.0 path rules (R1.1, R1.2), connection assertion (R1.6),
-    # locked lexicon (R2.5), and fallback config normalization (R2.2).
-    # Module: O365Toolkit.SharePoint
-    # Track: NEUTRAL
-    # ---------------------------------------------------------------------------
-
     Assert-ToolkitGraphConnection
-
-    if (-not $Config) {
-        $Config = @{ Environment = 'Global' }
-    }
+    if (-not $Config) { $Config = @{ Environment = 'Global' } }
 
     if ($PSCmdlet.ParameterSetName -eq 'ById') {
         $relativeUri = "v1.0/sites/$SiteId"
         $requestUri = Get-ToolkitGraphUri -RelativePath $relativeUri -Config $Config
-
-        $requestParams = @{
-            Uri    = $requestUri
-            Method = 'GET'
-            Config = $Config
-        }
-
-        $site = Invoke-ToolkitGraphRequest @requestParams
+        $site = Invoke-ToolkitGraphRequest -Uri $requestUri -Method 'GET' -Config $Config
 
         if ($site) {
             [PSCustomObject]@{
                 Id               = $site.id
-                DisplayName      = $site.displayName
-                Name             = $site.name
-                WebUrl           = $site.webUrl
-                CreatedDateTime  = $site.createdDateTime
-                LastModifiedTime = $site.lastModifiedDateTime
-                SiteCollection   = $site.siteCollection
-                Root             = $site.root
+                DisplayName      = if ($site.PSObject.Properties['displayName']) { $site.displayName } else { $null }
+                Name             = if ($site.PSObject.Properties['name']) { $site.name } else { $null }
+                WebUrl           = if ($site.PSObject.Properties['webUrl']) { $site.webUrl } else { $null }
+                CreatedDateTime  = if ($site.PSObject.Properties['createdDateTime']) { $site.createdDateTime } else { $null }
+                LastModifiedTime = if ($site.PSObject.Properties['lastModifiedDateTime']) { $site.lastModifiedDateTime } else { $null }
+                SiteCollection   = if ($site.PSObject.Properties['siteCollection']) { $site.siteCollection } else { $null }
+                Root             = if ($site.PSObject.Properties['root']) { $site.root } else { $null }
             }
         }
         return
@@ -101,25 +51,18 @@ function Get-ToolkitSharePointSite {
     if ($PSCmdlet.ParameterSetName -eq 'Root') {
         $relativeUri = 'v1.0/sites/root'
         $requestUri = Get-ToolkitGraphUri -RelativePath $relativeUri -Config $Config
-
-        $requestParams = @{
-            Uri    = $requestUri
-            Method = 'GET'
-            Config = $Config
-        }
-
-        $rootSite = Invoke-ToolkitGraphRequest @requestParams
+        $rootSite = Invoke-ToolkitGraphRequest -Uri $requestUri -Method 'GET' -Config $Config
 
         if ($rootSite) {
             [PSCustomObject]@{
                 Id               = $rootSite.id
-                DisplayName      = $rootSite.displayName
-                Name             = $rootSite.name
-                WebUrl           = $rootSite.webUrl
-                CreatedDateTime  = $rootSite.createdDateTime
-                LastModifiedTime = $rootSite.lastModifiedDateTime
-                SiteCollection   = $rootSite.siteCollection
-                Root             = $rootSite.root
+                DisplayName      = if ($rootSite.PSObject.Properties['displayName']) { $rootSite.displayName } else { $null }
+                Name             = if ($rootSite.PSObject.Properties['name']) { $rootSite.name } else { $null }
+                WebUrl           = if ($rootSite.PSObject.Properties['webUrl']) { $rootSite.webUrl } else { $null }
+                CreatedDateTime  = if ($rootSite.PSObject.Properties['createdDateTime']) { $rootSite.createdDateTime } else { $null }
+                LastModifiedTime = if ($rootSite.PSObject.Properties['lastModifiedDateTime']) { $rootSite.lastModifiedDateTime } else { $null }
+                SiteCollection   = if ($rootSite.PSObject.Properties['siteCollection']) { $rootSite.siteCollection } else { $null }
+                Root             = if ($rootSite.PSObject.Properties['root']) { $rootSite.root } else { $null }
             }
         }
         return
@@ -142,26 +85,18 @@ function Get-ToolkitSharePointSite {
     }
 
     $requestUri = Get-ToolkitGraphUri -RelativePath $relativeUri -Config $Config
-
-    $requestParams = @{
-        Uri      = $requestUri
-        Method   = 'GET'
-        Config   = $Config
-        AllPages = $AllPages.IsPresent
-    }
-
-    $sites = Invoke-ToolkitGraphRequest @requestParams
+    $sites = Invoke-ToolkitGraphRequest -Uri $requestUri -Method 'GET' -Config $Config -AllPages:$AllPages.IsPresent
 
     foreach ($s in $sites) {
         [PSCustomObject]@{
             Id               = $s.id
-            DisplayName      = $s.displayName
-            Name             = $s.name
-            WebUrl           = $s.webUrl
-            CreatedDateTime  = $s.createdDateTime
-            LastModifiedTime = $s.lastModifiedDateTime
-            SiteCollection   = $s.siteCollection
-            Root             = $s.root
+            DisplayName      = if ($s.PSObject.Properties['displayName']) { $s.displayName } else { $null }
+            Name             = if ($s.PSObject.Properties['name']) { $s.name } else { $null }
+            WebUrl           = if ($s.PSObject.Properties['webUrl']) { $s.webUrl } else { $null }
+            CreatedDateTime  = if ($s.PSObject.Properties['createdDateTime']) { $s.createdDateTime } else { $null }
+            LastModifiedTime = if ($s.PSObject.Properties['lastModifiedDateTime']) { $s.lastModifiedDateTime } else { $null }
+            SiteCollection   = if ($s.PSObject.Properties['siteCollection']) { $s.siteCollection } else { $null }
+            Root             = if ($s.PSObject.Properties['root']) { $s.root } else { $null }
         }
     }
 }

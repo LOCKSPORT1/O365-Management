@@ -1,82 +1,136 @@
 function New-ToolkitNotebookExport {
     [CmdletBinding()]
+    [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $false)]
-        [string]$ExportVersion = 'v0.3',
+        [Parameter()]
+        [string]$ExportPath,
 
-        [Parameter(Mandatory = $false)]
-        [string]$NextFeature = 'Get-ToolkitGroupMember',
+        [Parameter()]
+        [string]$RepositoryPath,
 
-        [Parameter(Mandatory = $false)]
-        [switch]$IncludeSourceSnapshot
+        [Parameter()]
+        [switch]$SkipQualityGate,
+
+        [Parameter()]
+        [AllowNull()]
+        [hashtable]$Config = @{ Environment = 'Global' }
     )
 
-    process {
-        $ErrorActionPreference = 'Stop'
-        $repoRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
-        $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-        $exportDirName = "NotebookLM_Export_$timestamp"
-        $privateExportsDir = Join-Path $repoRoot 'PrivateExports'
-        $stagingDir = Join-Path $privateExportsDir $exportDirName
+    $ErrorActionPreference = 'Stop'
 
-        if (-not (Test-Path $privateExportsDir)) {
-            New-Item -Path $privateExportsDir -ItemType Directory -Force | Out-Null
-        }
-        if (Test-Path $stagingDir) {
-            Remove-Item -Path $stagingDir -Recurse -Force
-        }
-        New-Item -Path $stagingDir -ItemType Directory -Force | Out-Null
+    if (-not $Config) { $Config = @{ Environment = 'Global' } }
 
-        Write-Host "Running pre-export Pester quality gate..." -ForegroundColor Cyan
-        $testResult = Invoke-Pester -Path "$repoRoot\Modules\O365Toolkit.Entra\Tests" -PassThru
-        
-        $testSummaryContent = @"
-# Pester Test Execution Summary
-- **Execution Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-- **Total Tests**: $($testResult.TotalCount)
-- **Passed**: $($testResult.PassedCount)
-- **Failed**: $($testResult.FailedCount)
-- **Result Status**: $($testResult.Result)
-"@
-        Set-Content -LiteralPath (Join-Path $stagingDir 'Test_Summary.md') -Value $testSummaryContent -Encoding utf8
+    if (-not $RepositoryPath) {
+        $current = $PSScriptRoot
+        if (-not $current) { $current = (Get-Location).Path }
 
-        if ($testResult.FailedCount -gt 0) {
-            throw "Export aborted! Pre-export Pester test suite failed with $($testResult.FailedCount) failures."
+        while ($current -and -not (Test-Path -Path (Join-Path -Path $current -ChildPath '.git'))) {
+            $parent = [System.IO.Path]::GetDirectoryName($current)
+            if ($parent -eq $current) { break }
+            $current = $parent
         }
 
-        # Generate Dynamic Documentation
-        New-ToolkitNotebookDocuments -OutputDirectory $stagingDir -ExportVersion $ExportVersion -NextFeature $NextFeature
-
-        # Generate Module Books & Project Index
-    $inventory = Get-ToolkitNotebookRepositoryInventory -RepositoryPath $repoRoot
-    New-ToolkitModuleBooks -Inventory $inventory -OutputDirectory $stagingDir -OutputPath $stagingDir
-    New-ToolkitProjectIndex -RepositoryPath $repoRoot -OutputDirectory $stagingDir
-
-        # Include Source Snapshot if requested
-        if ($IncludeSourceSnapshot) {
-            $snapshotDir = Join-Path $stagingDir 'RepositorySnapshot'
-            New-Item -Path $snapshotDir -ItemType Directory -Force | Out-Null
-            Copy-Item -Path "$repoRoot\Core" -Destination $snapshotDir -Recurse -Force
-            Copy-Item -Path "$repoRoot\Modules" -Destination $snapshotDir -Recurse -Force
-            Copy-Item -Path "$repoRoot\Tools" -Destination $snapshotDir -Recurse -Force
-        }
-
-        # Compress into a secure private zip package
-        $zipPath = "$stagingDir.zip"
-        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-        
-        Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
-        
-        Write-Host "PASS: Successfully created NotebookLM export package: $zipPath" -ForegroundColor Green
-
-        return [pscustomobject]@{
-            Success              = $true
-            ZipPath              = $zipPath
-            StagingDirectory     = $stagingDir
-            InventoryFileCount   = (Get-ChildItem -Path $stagingDir -Recurse -File).Count
-            TestSummary          = $testResult
+        if ($current -and (Test-Path -Path (Join-Path -Path $current -ChildPath '.git'))) {
+            $RepositoryPath = $current
+        } else {
+            $RepositoryPath = (Get-Location).Path
         }
     }
+
+    if (-not (Test-Path -Path (Join-Path -Path $RepositoryPath -ChildPath '.git'))) {
+        throw "Repository root not found at '$RepositoryPath'."
+    }
+
+    if (-not $SkipQualityGate) {
+        Write-Host "Running pre-export Pester quality gate..." -ForegroundColor Yellow
+        Import-Module -Name Pester -MinimumVersion 5.0.0 -Force -ErrorAction Stop
+
+        $coreManifest = Join-Path -Path $RepositoryPath -ChildPath 'Core\O365Toolkit.Core.psd1'
+        if (Test-Path -Path $coreManifest) {
+            Import-Module -Name $coreManifest -Force -ErrorAction SilentlyContinue
+        }
+
+        $testPaths = @(
+            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Entra\Tests')
+            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Teams\Tests')
+            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.Security\Tests')
+            (Join-Path -Path $RepositoryPath -ChildPath 'Modules\O365Toolkit.SharePoint\Tests')
+        ) | Where-Object { Test-Path $_ }
+
+        $pesterConfig = [PesterConfiguration]::Default
+        $pesterConfig.Run.Path = $testPaths
+        $pesterConfig.Run.PassThru = $true
+        $pesterConfig.Output.Verbosity = 'Minimal'
+
+        $pesterResult = Invoke-Pester -Configuration $pesterConfig
+        if ($pesterResult.FailedCount -gt 0) {
+            throw "Export aborted: $($pesterResult.FailedCount) test(s) failed."
+        }
+
+        # R3.9 gate: statement-expression assignments that collapse to $null.
+        $r39Scanner = Join-Path -Path $RepositoryPath -ChildPath 'Tools\Find-ToolkitStatementAssignment.ps1'
+        if (Test-Path -LiteralPath $r39Scanner) {
+            Write-Host 'Running R3.9 statement-assignment gate...' -ForegroundColor Yellow
+            $r39 = @(& $r39Scanner -RepositoryPath $RepositoryPath -MinimumRisk HIGH -PassThru)
+            if ($r39.Count -gt 0) {
+                $detail = ($r39 | ForEach-Object { "$($_.File):$($_.Line) $($_.Variable)" }) -join "`n  "
+                throw "Export aborted: $($r39.Count) R3.9 violation(s).`n  $detail`nRun Tools\Repair-ToolkitStatementAssignment.ps1 -WhatIf"
+            }
+        }
+        else {
+            Write-Warning "R3.9 scanner not found at $r39Scanner - gate skipped."
+        }
+    }
+
+    $timestamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
+    $exportBaseDir = if ($ExportPath) { $ExportPath } else { Join-Path -Path $RepositoryPath -ChildPath 'PrivateExports' }
+    $exportStagingDir = Join-Path -Path $exportBaseDir -ChildPath "NotebookLM_Export_$timestamp"
+    $moduleBooksDir = Join-Path -Path $exportStagingDir -ChildPath 'ModuleBooks'
+
+    $null = New-Item -ItemType Directory -Path $moduleBooksDir -Force
+
+    Write-Host "[*] Compiling Module Source Books..." -ForegroundColor Yellow
+$rawBooks = New-ToolkitModuleBooks -DestinationPath $moduleBooksDir -RepositoryPath $RepositoryPath -Config $Config
+$books = @()
+if ($rawBooks) { $books = @($rawBooks) }
+
+    Write-Host "[*] Extracting Function Reference..." -ForegroundColor Yellow
+    $fnRefPath = Join-Path -Path $exportStagingDir -ChildPath 'Function_Reference.md'
+    $null = New-ToolkitFunctionReference -DestinationPath $fnRefPath -RepositoryPath $RepositoryPath -Config $Config
+
+    Write-Host "[*] Generating Project Index..." -ForegroundColor Yellow
+    $projIndexPath = Join-Path -Path $exportStagingDir -ChildPath 'Project_Index.md'
+    $null = New-ToolkitProjectIndex -DestinationPath $projIndexPath -RepositoryPath $RepositoryPath -Config $Config
+
+    Write-Host "[*] Copying core root architecture documents..." -ForegroundColor Yellow
+    $null = New-ToolkitNotebookDocuments -DestinationPath $exportStagingDir -RepositoryPath $RepositoryPath -Config $Config
+
+    $zipPath = "$exportStagingDir.zip"
+    Write-Host "[*] Packaging archive: $zipPath..." -ForegroundColor Yellow
+    if (Test-Path -Path $zipPath) { Remove-Item -Path $zipPath -Force }
+    Compress-Archive -Path "$exportStagingDir\*" -DestinationPath $zipPath -Force
+
+    # Consolidate every artifact into the stable master book.
+    $masterScript = Join-Path -Path $RepositoryPath -ChildPath 'Tools\New-ToolkitMasterBook.ps1'
+    if (Test-Path -LiteralPath $masterScript) {
+        Write-Host '[*] Updating master book...' -ForegroundColor Yellow
+        $null = & $masterScript -StagingPath $exportStagingDir -RepositoryPath $RepositoryPath
+    }
+
+    $allExportedFiles = Get-ChildItem -Path $exportStagingDir -Recurse -File
+
+    Write-Host "`nPASS: Knowledge export bundle generated successfully!" -ForegroundColor Green
+
+    $bookFilesList = @()
+    if ($books.Count -gt 0) { $bookFilesList = @($books | ForEach-Object { $_.BookFile }) }
+
+    return [PSCustomObject]@{
+        ExportVersion = 'v0.4'
+        Timestamp     = $timestamp
+        PackagePath   = $zipPath
+        StagingPath   = $exportStagingDir
+        TotalFiles    = $allExportedFiles.Count
+        ModuleBooks   = $bookFilesList
+        Status        = 'Success'
+    }
 }
-
-

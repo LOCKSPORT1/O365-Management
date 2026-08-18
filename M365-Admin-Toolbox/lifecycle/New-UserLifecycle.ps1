@@ -119,7 +119,7 @@ function New-ToolboxTempPassword {
     if (-not $nonAlphaChars -or $nonAlphaChars.Count -eq 0) { $nonAlphaChars = @('!','@','#','$','%') }
     $bytes = [byte[]]::new($Length)
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-    $chars = for ($i = 0; $i -lt $Length; $i++) { $CharSet[$bytes[$i] % $CharSet.Length] }
+    $chars = @(for ($i = 0; $i -lt $Length; $i++) { $CharSet[$bytes[$i] % $CharSet.Length] })
     # Guarantee the minimum number of non-alphanumeric characters requested.
     for ($i = 0; $i -lt [math]::Min($MinNonAlphanumeric, $Length); $i++) {
         $chars[$i] = $nonAlphaChars[$bytes[$i] % $nonAlphaChars.Count]

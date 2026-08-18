@@ -1,4 +1,12 @@
 BeforeAll {
+    function global:Assert-ToolkitGraphConnection { }
+    function global:Get-ToolkitGraphUri {
+        param([string]$RelativePath, [hashtable]$Config)
+        return "https://graph.microsoft.com/$RelativePath"
+    }
+    function global:Invoke-ToolkitGraphRequest {
+        param([string]$Uri, [string]$Method, [switch]$AllPages, [hashtable]$Config)
+    }
     $corePsd1  = "C:\Users\jchri\Documents\GitHub\O365-Management\Core\O365Toolkit.Core.psd1"
     if (-not (Test-Path $corePsd1)) {
         $corePsd1 = "C:\Users\jchristy\Documents\GitHub\O365-Management\Core\O365Toolkit.Core.psd1"

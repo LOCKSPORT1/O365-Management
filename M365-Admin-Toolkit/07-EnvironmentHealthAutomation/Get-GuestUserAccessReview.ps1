@@ -65,7 +65,7 @@ catch {
 
 $cutoff = (Get-Date).AddDays(-$StaleThresholdDays)
 
-$report = foreach ($g in $guests) {
+$report = @(foreach ($g in $guests) {
     $lastSignIn = $g.SignInActivity.LastSignInDateTime
     try {
         $memberOf = Get-MgUserMemberOf -UserId $g.Id -All
@@ -87,7 +87,7 @@ $report = foreach ($g in $guests) {
         GroupMemberships = $groupNames
         StaleFlag      = ((-not $lastSignIn) -or ($lastSignIn -lt $cutoff))
     }
-}
+})
 
 $report | Export-Csv -Path $ExportPath -NoTypeInformation
 Write-Host "Exported $($report.Count) guest account(s) to $ExportPath" -ForegroundColor Green

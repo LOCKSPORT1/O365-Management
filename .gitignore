@@ -28,3 +28,7 @@ $RECYCLE.BIN/
 # Environment settings for the access-profile scripts - real OU paths and
 # server names. environment.example.psd1 is the committed template.
 environment.psd1
+
+# Environment settings for the access-profile scripts - real OU paths and
+# server names. environment.example.psd1 is the committed template.
+environment.psd1

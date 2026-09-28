@@ -36,7 +36,7 @@ jobs:
           # config files are another. Only validate the manifests.
           $manifests = Get-ChildItem -Path . -Filter "*.psd1" -Recurse | Where-Object {
             $_.FullName -notmatch '[\\/]PrivateExports[\\/]' -and
-            $_.Name -notmatch '^environment(\.example)?\.psd1$'
+            (Select-String -Path $_.FullName -Pattern '^\s*(RootModule|ModuleVersion)\s*=' -Quiet)
           }
           foreach ($m in $manifests) {
             Write-Host "[*] Testing manifest: $($m.FullName)"

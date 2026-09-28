@@ -1,9 +1,8 @@
 <#
     Environment settings for the neutral script variants.
 
-    Copy to environment.psd1 beside the scripts and fill in. The neutral
-    variants read this at startup; the preset variants keep their
-    values inline, which is the only difference between the two sets.
+    Copy to environment.psd1 beside the scripts and fill in. The scripts read
+    it at startup, so nothing tenant-specific lives in the code.
 
     Every value here is a default. Each script still accepts the equivalent
     parameter, and an explicit parameter always wins.

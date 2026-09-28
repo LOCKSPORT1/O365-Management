@@ -4,7 +4,11 @@
     inactive/disabled users from their membership rule.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     Pulls every dynamic-membership group in the tenant via Microsoft Graph,
     inspects each group's MembershipRule, and checks whether it already
@@ -18,23 +22,21 @@
     that don't are marked NEEDS ACCOUNTENABLED CLAUSE so you know which ones
     to fix.
 
-    the organization REFERENCE EXAMPLES (from the most recent audit run):
-      - "All Entra Company Users" is your known-good USER dynamic group:
+    REFERENCE EXAMPLES:
+      - A known-good USER dynamic group rule looks like:
         (user.mail -match "@contoso.com") and (user.accountEnabled -eq true)
-        and (user.dirSyncEnabled -eq true) - matches this pattern when
-        building new the organization user-based dynamic groups.
-      - "All Entra Company Win PCs" is your known-good DEVICE dynamic
-        group: it filters on device.accountEnabled (not user.accountEnabled),
-        which is the correct clause for a device-based rule.
-      - The most recent the organization audit flagged 7 groups, all Autopilot/app-
-        assignment device groups (AP-All-Autopilot-Devices, AP-Dept-
-        AppA, AP-Dept-AppB, AP-Dept-AppC, AP-Pilot,
-        AP-Sales, Mobile Devices) plus "All Users" was OK. Before blindly
-        running -Fix against the AP-* device groups, confirm with whoever
-        owns Autopilot/Intune provisioning whether excluding disabled-device
-        state is actually desired for deployment-scoped groups - a disabled
-        device dropping out of an Autopilot group mid-provisioning could be
-        disruptive if "disabled" ever gets set before provisioning completes.
+        and (user.dirSyncEnabled -eq true) - follow this pattern when
+        building new user-based dynamic groups.
+      - A known-good DEVICE dynamic group filters on device.accountEnabled
+        (not user.accountEnabled), which is the correct clause for a
+        device-based rule.
+      - Autopilot and app-assignment device groups are the ones most often
+        flagged. Before blindly running -Fix against them, confirm with
+        whoever owns Autopilot/Intune provisioning whether excluding
+        disabled-device state is actually desired for deployment-scoped
+        groups - a disabled device dropping out of an Autopilot group
+        mid-provisioning could be disruptive if "disabled" ever gets set
+        before provisioning completes.
 
     This script is READ-ONLY by default - it only reports, it does not
     modify any group's membership rule. Use -Fix to optionally patch
@@ -47,7 +49,7 @@
 
     NOTE: the appended clause is always 'user.accountEnabled', even for
     device-based rules. Review the proposed rule shown for each group before
-    confirming - a device-only rule (e.g. AP-Dept-AppC above) needs
+    confirming - a device-only rule (e.g. an Autopilot device group) needs
     'device.accountEnabled' instead, not 'user.accountEnabled'. Answer 'N'
     for any device group and add the correct clause manually via
     Update-MgGroup -MembershipRule if you want it fixed with the right
@@ -188,4 +190,3 @@ elseif (-not $Fix -and $needsFix.Count -gt 0) {
 }
 
 Write-Host "`nDone." -ForegroundColor Cyan
-

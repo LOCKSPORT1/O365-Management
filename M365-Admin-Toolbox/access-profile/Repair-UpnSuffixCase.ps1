@@ -205,4 +205,3 @@ else {
     Write-Host "Now trigger a sync on the Entra Connect server. A case-only edit may not" -ForegroundColor Cyan
     Write-Host "register as a delta, so if a delta doesn't take, use -PolicyType Initial." -ForegroundColor Cyan
 }
-

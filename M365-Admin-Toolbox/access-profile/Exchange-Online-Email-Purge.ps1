@@ -254,4 +254,3 @@ Write-Host " - Or grant yourself temporary Full Access to a mailbox and check it
 Write-Host "   folders directly, then revoke the access." -ForegroundColor Cyan
 
 Disconnect-ExchangeOnline -Confirm:$false
-

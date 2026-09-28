@@ -8,7 +8,11 @@
     cloud sessions.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     
 
@@ -180,7 +184,7 @@
 .EXAMPLE
     .\Offboard-HybridUser.ps1 -SamAccountName jsmith
     (Typical run. Shared-mailbox OU, Entra Connect server and report path all come from the
-    presets in section 0, and the manager is read from AD - so this is usually all you need.)
+    environment.psd1 defaults in section 0, and the manager is read from AD - so this is usually all you need.)
 
 .EXAMPLE
     .\Offboard-HybridUser.ps1 -SamAccountName jsmith -ManagerUpn dsmith@contoso.com
@@ -298,11 +302,10 @@ param(
     [switch]$AutoInstallMissingModules
 )
 
-#region 0. Configuration (the organization preset)
+#region 0. Configuration (defaults from environment.psd1)
 # ---------------------------------------------------------------------------------------
-# Preset for your own environment. Update this if your shared-mailbox /
-# disabled-users OU ever changes. For any other organization, use the vendor-neutral
-# Offboard-HybridUser-Neutral.ps1 instead and set its placeholder to their OU.
+# Last-resort defaults. The values come from environment.psd1 via the loader
+# below; the equivalent parameter always wins.
 # ---------------------------------------------------------------------------------------
 
 # --- environment configuration ---------------------------------------------
@@ -1351,4 +1354,3 @@ else {
 
 Stop-Transcript | Out-Null
 #endregion
-

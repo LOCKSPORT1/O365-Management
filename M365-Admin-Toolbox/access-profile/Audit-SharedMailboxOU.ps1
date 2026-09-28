@@ -6,7 +6,11 @@
     from before this automation existed, or partial/failed runs).
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     For every user object found in the OU, this script checks:
       - AD account still enabled (it shouldn't be - offboarded users are disabled)
@@ -101,7 +105,7 @@ if (-not $ReportPath) { $ReportPath = Join-Path $Script:PackageRoot 'Reports\Sha
 # ---------------------------------------------------------------------------------------
 
 
-#region 0. Configuration (the organization preset)
+#region 0. Configuration (defaults from environment.psd1)
 
 # --- environment configuration ---------------------------------------------
 # Tenant specifics live in environment.psd1 beside this script rather than in
@@ -494,4 +498,3 @@ Write-Host "Full report: $reportFile"
 
 Stop-Transcript | Out-Null
 #endregion
-

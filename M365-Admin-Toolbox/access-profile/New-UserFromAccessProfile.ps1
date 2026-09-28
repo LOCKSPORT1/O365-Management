@@ -6,7 +6,11 @@
     Export-UserAccessProfile.ps1.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     Pipeline:
       1. If -SamAccountName wasn't given, generate one from -GivenName/-Surname as
@@ -14,8 +18,8 @@
          incrementing number on collision (jsmith2, jsmith3, ...). DisplayName, GivenName
          and Surname keep their original casing - only the account identifiers are
          lowercased.
-      2. Load the JSON access profile from -ProfilePath (see Export-UserAccessProfile-
-         the organization.ps1 to create one from a template user). Resolve -TargetOU and the
+      2. Load the JSON access profile from -ProfilePath (see Export-UserAccessProfile.ps1
+         to create one from a template user). Resolve -TargetOU and the
          UPN domain: explicit param > the profile's own values > section 0 fallback.
       3. Create the new on-prem AD user (New-ADUser) in the resolved OU, enabled, with a
          temporary password the user must change at first logon.
@@ -98,8 +102,8 @@
 .PARAMETER UsageLocation
     Two-letter country code (e.g. "US") required by Microsoft Graph before it will assign
     any license to a user. If omitted, defaults to the profile's UsageLocation (the
-    template user's own); falls back to the section "0. Configuration" default ("US" for
-    the organization) only if the profile doesn't have that value.
+    template user's own); falls back to the section "0. Configuration" default (UsageLocation in
+    environment.psd1) only if the profile doesn't have that value.
 
 .PARAMETER Department
     Optional AD "Department" attribute to set on the new user.
@@ -137,7 +141,7 @@
 .PARAMETER EntraConnectServer
     Hostname of the Entra Connect / AD Connect server, used to remotely trigger
     Start-ADSyncSyncCycle over PowerShell remoting. Defaults to
-    $Script:DefaultEntraConnectServer in section 0 (the the organization preset, same value the
+    $Script:DefaultEntraConnectServer in section 0 (read from environment.psd1, same value the
     offboarding script uses). Pass -SkipEntraSyncWait if you trigger sync another way.
 
 .PARAMETER SkipEntraSyncWait
@@ -269,14 +273,14 @@ $Script:AccessProfileDir = Join-Path $Script:PackageRoot 'AccessProfiles'
 # ---------------------------------------------------------------------------------------
 
 
-#region 0. Configuration (the organization preset)
+#region 0. Configuration (defaults from environment.psd1)
 # ---------------------------------------------------------------------------------------
 # These are LAST-RESORT fallbacks only. -TargetOU, the UPN domain, and UsageLocation
 # normally come from the access profile itself (the template user's own OU, email domain,
 # and usage location - see section 1b below), so most runs won't need any of these set.
 # They only kick in if you pass a param explicitly AND the profile is missing that data
 # (e.g. an older profile exported before this script tracked it), or as a last fallback if
-# neither is available. DefaultUsageLocation is set to "US" for the organization; Graph won't
+# neither is available. DefaultUsageLocation comes from environment.psd1; Graph won't
 # assign a license to a user without a usage location set.
 # ---------------------------------------------------------------------------------------
 
@@ -1451,4 +1455,3 @@ elseif ($passwordWasGenerated -and $WhatIfPreference) {
     Write-Host "`n(A temporary password was generated but is NOT shown: no account exists to own it.)" -ForegroundColor DarkGray
 }
 #endregion
-

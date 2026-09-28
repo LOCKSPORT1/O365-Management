@@ -5,7 +5,11 @@
     memberships, and assigned Entra ID licenses into a reusable JSON access profile.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     Run this against a "template" user who already has the right access for a given
     role (e.g. a current Engineering team member) - not a random or leaving user. The
@@ -299,8 +303,8 @@ if ($ProfileName -ne $rawProfileName) {
 Write-Host "Profile name: $ProfileName  (source: $Script:ProfileNameSource)" -ForegroundColor DarkCyan
 #endregion
 # The template user's own OU - a new hire cloned from this profile normally belongs in
-# the same OU as the template user, so this is captured for New-UserFromAccessProfile-
-# the organization.ps1 to use as its default -TargetOU (it can still be overridden per-run).
+# the same OU as the template user, so this is captured for New-UserFromAccessProfile.ps1
+# to use as its default -TargetOU (it can still be overridden per-run).
 $sourceUserOU = $adUser.DistinguishedName -replace '^CN=[^,]+,', ''
 Write-Host "Found AD user: $($adUser.DistinguishedName)"
 Write-Host "UPN: $upn"
@@ -415,4 +419,3 @@ Write-Host "`n=== Profile written: $outFile ===" -ForegroundColor Green
 Write-Host "AD groups: $($adGroups.Count)  |  Entra groups: $($entraGroups.Count) ($dynamicCount dynamic)  |  Licenses: $($licenses.Count)"
 Write-Host "Review this file before using it with New-UserFromAccessProfile.ps1 - it's a plain-text copy of exactly what $upn had at export time." -ForegroundColor Yellow
 #endregion
-

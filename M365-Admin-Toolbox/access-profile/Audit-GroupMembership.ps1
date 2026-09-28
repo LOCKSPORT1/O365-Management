@@ -6,7 +6,11 @@
     groups that have zero direct members at all.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     Two independent findings, reported separately:
       1. STALE MEMBERSHIP - a group has at least one direct member whose
@@ -52,7 +56,7 @@
 .PARAMETER ADSearchBase
     Distinguished name to scope the on-prem AD portion of the audit to a
     specific OU. Omit to audit every Security/Distribution group in the
-    the organization domain.
+    domain.
 
 .PARAMETER RemoveInactiveMembers
     Interactively remove flagged disabled/inactive members from their
@@ -461,4 +465,3 @@ Write-Host "Full report: $reportFile"
 
 Stop-Transcript | Out-Null
 #endregion
-

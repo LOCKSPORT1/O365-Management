@@ -2,10 +2,14 @@
 <#
 .SYNOPSIS
     Helpdesk account recovery: reports a user's sign-in state, unlocks a locked-out AD
-    account, and resets the AD password. Contoso preset.
+    account, and resets the AD password.
 
 .DESCRIPTION
-    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Where this script has environment
+    defaults - OUs, UPN suffix, Entra Connect server - they are read from
+    environment.psd1 beside it. Copy environment.example.psd1 and fill it in
+    before first use. Every value there is a default; the equivalent
+    parameter always wins.
 
     The two things a helpdesk call actually needs - "I'm locked out" and "I forgot my
     password" - are the same call often enough that this handles both, and always shows the
@@ -115,7 +119,7 @@
 
 .PARAMETER SharedMailboxOU
     DN of the shared-mailbox / disabled-users OU used by the guard. Defaults to the section 0
-    preset, which matches the offboarding script's.
+    default (from environment.psd1), which matches the offboarding script's.
 
 .PARAMETER ReportPath
     Folder for the CSV report. Defaults to Reports\AccountResets inside this script's own
@@ -186,7 +190,7 @@ if (-not $Script:PackageRoot) { $Script:PackageRoot = (Get-Location).Path }
 if (-not $ReportPath) { $ReportPath = Join-Path $Script:PackageRoot 'Reports\AccountResets' }
 # ---------------------------------------------------------------------------------------
 
-#region 0. Configuration (the organization preset)
+#region 0. Configuration (defaults from environment.psd1)
 # ---------------------------------------------------------------------------------------
 # Must match $Script:DefaultSharedMailboxOU in Offboard-HybridUser.ps1. If that
 # OU ever moves, change it in both places - this is the OU the offboarded-account guard
@@ -782,4 +786,3 @@ else {
     Write-Host "Done. Report: $reportFile" -ForegroundColor Green
 }
 #endregion
-

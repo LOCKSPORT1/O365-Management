@@ -143,4 +143,3 @@ foreach ($sam in $SamAccountNames) {
     }
     Write-Host ""
 }
-

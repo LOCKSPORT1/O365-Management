@@ -254,4 +254,3 @@ if ($failed.Count) {
     Write-Warning "$($failed.Count) device(s) could not be cleared - clear them in Intune manually (Devices > <name> > Properties > Primary user)."
 }
 #endregion
-

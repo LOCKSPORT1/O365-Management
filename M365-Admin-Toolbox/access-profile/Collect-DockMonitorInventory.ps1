@@ -178,4 +178,3 @@ if (Get-Command Ninja-Property-Set -ErrorAction SilentlyContinue) {
 } else {
     Write-Warning "Ninja-Property-Set not found. Run this script through NinjaRMM (scheduled script/policy) so results get written to custom fields. Output above can still be reviewed manually."
 }
-

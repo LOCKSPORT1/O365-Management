@@ -67,6 +67,12 @@ jobs:
           $pesterConfig.TestResult.OutputPath = './test-results.xml'
 
           $results = Invoke-Pester -Configuration $pesterConfig
+          # A vanished test path is filtered out by Test-Path above, which
+          # would otherwise let this step exit 0 with nothing run.
+          if ($results.TotalCount -eq 0) {
+            throw "CI build failed: no Pester tests were executed."
+          }
+
           if ($results.FailedCount -gt 0) {
             throw "CI build failed: $($results.FailedCount) Pester test(s) failed."
           }

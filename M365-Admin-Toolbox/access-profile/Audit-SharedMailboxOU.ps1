@@ -2,14 +2,11 @@
 <#
 .SYNOPSIS
     Audits every AD account already sitting in the Shared Mailbox OU and flags anything
-    that Offboard-HybridUser.ps1 should have cleaned up but didn't (stragglers from
-    before this automation existed, or partial/failed runs).
+    that Offboard-HybridUser.ps1 should have cleaned up but didn't (stragglers
+    from before this automation existed, or partial/failed runs).
 
 .DESCRIPTION
-    This is a PORTABLE, VENDOR-NEUTRAL template: nothing about a specific OU path, domain
-    name, or tenant is hard-coded. Section "0. Configuration" below and -SharedMailboxOU
-    are the only environment-specific inputs. See the offboarding script's .NOTES
-    ("Finding your environment-specific values") for exactly where to look those up.
+    THIS IS THE VENDOR-NEUTRAL VARIANT. Environment defaults are read from environment.psd1 beside this script - copy environment.example.psd1 and fill it in before first use. Every value there is a default; the equivalent parameter always wins.
 
     For every user object found in the OU, this script checks:
       - AD account still enabled (it shouldn't be - offboarded users are disabled)
@@ -30,12 +27,16 @@
     expected "fully offboarded" state and lets you decide (or auto-fix, if you trust it).
 
 .PARAMETER SharedMailboxOU
-    Distinguished name of the OU to audit. No real-world default is baked in - either
-    edit the placeholder in section "0. Configuration" once for your environment, or
-    pass -SharedMailboxOU every run.
+    Distinguished name of the OU to audit. Defaults to the configured shared mailbox OU.
+    Pass this explicitly to audit a different OU.
 
 .PARAMETER ReportPath
-    Folder to write the CSV report and transcript log to. Defaults to .\AuditReports.
+    Folder to write the CSV report and transcript log to. Defaults to a fixed, shared
+    a Reports\SharedMailboxAudits subfolder inside this script's own package folder
+    (resolved via $PSScriptRoot, so the package is portable) - not a relative ".\..." path, so reports
+    always land in the same findable spot no matter what directory PowerShell happens to
+    be in when you run this (e.g. C:\Windows\System32, which is where this ends up if
+    launched from a shortcut/Run box without changing directory first).
 
 .PARAMETER Remediate
     Fix what's found: disable AD accounts that are still enabled, remove leftover AD
@@ -51,15 +52,15 @@
     portion, which never makes changes regardless.
 
 .EXAMPLE
-    .\Audit-SharedMailboxOU.ps1 -SharedMailboxOU "OU=Shared Mailboxes,DC=contoso,DC=com"
-    Report-only pass over the specified OU.
+    .\Audit-SharedMailboxOU.ps1
+    Report-only pass over your Shared Mailbox OU.
 
 .EXAMPLE
-    .\Audit-SharedMailboxOU.ps1 -SharedMailboxOU "OU=Shared Mailboxes,DC=contoso,DC=com" -Remediate -WhatIf
+    .\Audit-SharedMailboxOU.ps1 -Remediate -WhatIf
     Preview what remediation would do, without changing anything.
 
 .EXAMPLE
-    .\Audit-SharedMailboxOU.ps1 -SharedMailboxOU "OU=Shared Mailboxes,DC=contoso,DC=com" -Remediate
+    .\Audit-SharedMailboxOU.ps1 -Remediate
     Audit and fix everything it finds.
 
 .NOTES
@@ -81,18 +82,60 @@
 param(
     [string]$SharedMailboxOU,
 
-    [string]$ReportPath = ".\AuditReports",
+    [string]$ReportPath,
 
     [switch]$Remediate,
 
     [switch]$AutoInstallMissingModules
 )
 
-#region 0. Configuration
-$Script:DefaultSharedMailboxOU = "OU=CHANGE-ME,DC=CHANGE-ME,DC=CHANGE-ME"
+# --- Portable path resolution ----------------------------------------------------------
+# Resolve output locations against THIS SCRIPT'S OWN FOLDER so the whole package works
+# unchanged from a flash drive, a UNC share, or a local disk. $PSScriptRoot is used
+# deliberately instead of '.\' or $PWD, which resolve against whatever directory PowerShell
+# happened to start in (C:\Windows\System32 when launched from a shortcut or the Run box).
+$Script:PackageRoot = $PSScriptRoot
+if (-not $Script:PackageRoot) { $Script:PackageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $Script:PackageRoot) { $Script:PackageRoot = (Get-Location).Path }
+if (-not $ReportPath) { $ReportPath = Join-Path $Script:PackageRoot 'Reports\SharedMailboxAudits' }
+# ---------------------------------------------------------------------------------------
+
+
+#region 0. Configuration (the organization preset)
+
+# --- environment configuration ---------------------------------------------
+# Tenant specifics live in environment.psd1 beside this script rather than in
+# the code. Every value is a default; the equivalent parameter still wins.
+$Script:EnvConfig = @{}
+$Script:EnvConfigPath = Join-Path $PSScriptRoot 'environment.psd1'
+if (Test-Path -LiteralPath $Script:EnvConfigPath) {
+    try {
+        $Script:EnvConfig = Import-PowerShellDataFile -LiteralPath $Script:EnvConfigPath
+    }
+    catch {
+        Write-Warning ("Could not read {0}: {1}" -f $Script:EnvConfigPath, $_.Exception.Message)
+    }
+}
+else {
+    Write-Warning ("No environment.psd1 found beside this script. Copy environment.example.psd1 and fill it in, or pass the values as parameters.")
+}
+
+function Get-EnvSetting {
+    param([Parameter(Mandatory)][string]$Name, [string]$Default = '')
+    if ($Script:EnvConfig.ContainsKey($Name) -and $Script:EnvConfig[$Name]) {
+        return [string]$Script:EnvConfig[$Name]
+    }
+    return $Default
+}
+# ---------------------------------------------------------------------------
+
+$Script:DefaultSharedMailboxOU = Get-EnvSetting -Name 'SharedMailboxOU'
 #endregion
 
 if (-not $SharedMailboxOU) { $SharedMailboxOU = $Script:DefaultSharedMailboxOU }
+
+# Bump on any behaviour change; logged with each run so a saved report maps to a build.
+$Script:ScriptVersion = "2026-08-06.1 (Exchange connection probe no longer throws NullReference on a fresh session)"
 
 $ErrorActionPreference = 'Stop'
 $results = New-Object System.Collections.Generic.List[Object]
@@ -112,14 +155,90 @@ function Add-Result {
 # Ensures a required module is available, importing it if present, offering to install it
 # if it's missing and comes from PSGallery, or explaining how to get it if it doesn't
 # (currently only ActiveDirectory/RSAT, which is a Windows feature, not a gallery module).
+# Get-ConnectionInformation calls Get-ConnectionContext internally, and with no active
+# session some ExchangeOnlineManagement versions throw a NullReferenceException rather than
+# returning null. -ErrorAction SilentlyContinue does NOT suppress that, because it is a
+# terminating exception raised inside the cmdlet, not an error record. Unhandled, it aborts
+# the enclosing try block - so a run with no prior Exchange session silently skipped the
+# mailbox conversion entirely. Any failure here means "not connected".
+function Test-ExoConnected {
+    try   { return [bool](Get-ConnectionInformation -ErrorAction Stop) }
+    catch { return $false }
+}
+
 function Ensure-Module {
     param(
         [Parameter(Mandatory)] [string]$Name,
         [Parameter(Mandatory)] [string]$ManualInstallHint,
         [switch]$IsWindowsFeature
     )
+    # Already imported in this session? Don't re-import. Re-importing a Microsoft.Graph
+    # submodule can trip the SDK's assembly-version conflict, and there's nothing to gain.
+    if (Get-Module -Name $Name) { return }
+
     if (Get-Module -ListAvailable -Name $Name) {
-        Import-Module -Name $Name -ErrorAction Stop
+        try {
+            Import-Module -Name $Name -ErrorAction Stop
+        }
+        catch {
+            # "Assembly with same name is already loaded" is the Microsoft.Graph SDK's
+            # signature failure: .NET cannot host two versions of the same assembly in one
+            # session, so once one Graph submodule has pulled in a given
+            # Microsoft.Graph.Authentication, any submodule pinned to a different version
+            # cannot load. Nothing the script does can unload it - the session is already
+            # committed. The raw error names an assembly and a version and explains none of
+            # this, so translate it.
+            if ($_.Exception.Message -match 'Assembly with same name is already loaded' -or
+                $_.Exception.Message -match 'Could not load file or assembly .*Microsoft\.Graph') {
+
+                # Two different root causes produce the same exception, and they need
+                # different fixes - so work out which one this is instead of guessing.
+                #   Stale session   : modules loaded here are at MIXED versions, because
+                #                     earlier Graph work in this session pinned one.
+                #   Bad install     : loaded versions all AGREE, so the session is clean and
+                #                     the module being imported is installed at a version
+                #                     that wants a different Authentication assembly.
+                $loadedMods  = @(Get-Module Microsoft.Graph*)
+                $loadedList  = @($loadedMods | ForEach-Object { "$($_.Name) $($_.Version)" }) -join ', '
+                $loadedVers  = @($loadedMods | Select-Object -ExpandProperty Version -Unique)
+                $sessionMixed = $loadedVers.Count -gt 1
+
+                # Installed versions of the module that just failed - this is what names the culprit.
+                $installed = @()
+                try {
+                    $installed = @(Get-Module -ListAvailable -Name $Name |
+                                   Select-Object -ExpandProperty Version |
+                                   Sort-Object -Unique | ForEach-Object { [string]$_ })
+                }
+                catch { }
+
+                $msg = "Microsoft Graph assembly conflict while importing '$Name'.`n`n"
+                $msg += "  $($_.Exception.Message)`n`n"
+                $msg += "One session cannot host two versions of the same assembly, so once a Graph submodule "
+                $msg += "has fixed the Microsoft.Graph.Authentication version, any submodule needing a different "
+                $msg += "one cannot load.`n`n"
+                $msg += "  Loaded in this session : $(if ($loadedList) { $loadedList } else { '(none)' })`n"
+                $msg += "  '$Name' installed at   : $(if ($installed.Count) { $installed -join ', ' } else { '(unknown)' })`n`n"
+
+                if ($sessionMixed) {
+                    $msg += "DIAGNOSIS: the loaded modules are at MIXED versions, so this session was already "
+                    $msg += "committed by earlier Graph work.`n"
+                    $msg += "FIX: run this script in a fresh PowerShell session, before any other Graph work.`n"
+                }
+                else {
+                    $msg += "DIAGNOSIS: the loaded modules all agree on one version, so the session is clean - "
+                    $msg += "'$Name' is INSTALLED at a version that doesn't match the rest. A fresh session will "
+                    $msg += "NOT help.`n`n"
+                    $msg += "FIX: align the installed versions. Check them all:`n"
+                    $msg += "  Get-Module Microsoft.Graph* -ListAvailable | Select-Object Name,Version | Sort-Object Name,Version`n`n"
+                    $msg += "then install the odd one out at the version the others are on, e.g.`n"
+                    $msg += "  Install-Module $Name -RequiredVersion $(if ($loadedVers.Count -eq 1) { $loadedVers[0] } else { '<version>' }) -Scope CurrentUser -Force -AllowClobber`n`n"
+                    $msg += "Reopen PowerShell afterwards - the bad assembly stays loaded until you do."
+                }
+                throw $msg
+            }
+            throw
+        }
         return
     }
     if ($IsWindowsFeature) {
@@ -154,6 +273,7 @@ $transcriptFile = Join-Path $ReportPath "AuditSharedMailboxOU_$(Get-Date -Format
 Start-Transcript -Path $transcriptFile -Append | Out-Null
 
 Write-Host "=== Auditing $SharedMailboxOU ===" -ForegroundColor Cyan
+Write-Host "Reports will be saved to: $ReportPath" -ForegroundColor DarkCyan
 
 #region 1. Load / verify modules
 Ensure-Module -Name 'ActiveDirectory' -IsWindowsFeature -ManualInstallHint (
@@ -170,12 +290,6 @@ Ensure-Module -Name 'Microsoft.Graph.Identity.SignIns' -ManualInstallHint "Insta
 #endregion
 
 #region 2. Validate OU and enumerate users
-if (-not $SharedMailboxOU -or $SharedMailboxOU -like "*CHANGE-ME*") {
-    Stop-Transcript | Out-Null
-    throw ("-SharedMailboxOU was not provided and the default in section 0 is still the placeholder. " +
-           "Either pass -SharedMailboxOU 'OU=...,DC=...,DC=...' or edit `$Script:DefaultSharedMailboxOU " +
-           "near the top of this script.")
-}
 if (-not (Get-ADOrganizationalUnit -Identity $SharedMailboxOU -ErrorAction SilentlyContinue)) {
     Stop-Transcript | Out-Null
     throw ("Could not find an OU with distinguished name '$SharedMailboxOU' in this domain. Double-check " +
@@ -194,7 +308,7 @@ if ($adUsers.Count -eq 0) {
 
 #region 3. Connect to Exchange Online and Graph once, up front
 try {
-    if (-not (Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
+    if (-not (Test-ExoConnected)) {
         Connect-ExchangeOnline -ShowBanner:$false
     }
 }
@@ -318,10 +432,9 @@ foreach ($adUser in $adUsers) {
                 $isSynced      = [bool]$groupDetail.OnPremisesSyncEnabled
                 $isMailEnabled = [bool]$groupDetail.MailEnabled
                 $isM365Group   = $groupDetail.GroupTypes -contains "Unified"
-                $isDynamic     = $groupDetail.GroupTypes -contains "DynamicMembership"
+                $userFlagged = $true
 
                 if ($isSynced) {
-                    $userFlagged = $true
                     Add-Result $sam "Entra-Group:$groupName" "Audit" "Flagged" "Still in synced group $groupName - remove via AD, not here"
                     # Not remediated here even with -Remediate: removing a synced group's
                     # membership has to happen in AD, which this read-only-by-default audit
@@ -331,19 +444,11 @@ foreach ($adUser in $adUsers) {
                     continue
                 }
 
-                if ($isDynamic) {
-                    # Dynamic groups compute membership from a rule - no admin role or API
-                    # call can manually add/remove a member. Always skip, never attempt.
-                    Add-Result $sam "Entra-Group:$groupName" "Audit" "Skipped" "Dynamic membership group - membership is rule-based and can't be manually removed. If this user shouldn't match it, adjust the group's dynamic membership rule instead (e.g. exclude disabled accounts)."
-                    continue
-                }
-
-                $userFlagged = $true
                 Add-Result $sam "Entra-Group:$groupName" "Audit" "Flagged" "Still in cloud group $groupName"
                 if ($Remediate -and $PSCmdlet.ShouldProcess("$sam / $groupName", "Remove cloud group membership")) {
                     try {
                         if ($isMailEnabled -and -not $isM365Group) {
-                            if (-not (Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
+                            if (-not (Test-ExoConnected)) {
                                 Connect-ExchangeOnline -ShowBanner:$false
                             }
                             Remove-DistributionGroupMember -Identity $groupName -Member $upn -Confirm:$false -BypassSecurityGroupManagerCheck
@@ -389,3 +494,4 @@ Write-Host "Full report: $reportFile"
 
 Stop-Transcript | Out-Null
 #endregion
+

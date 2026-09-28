@@ -46,7 +46,12 @@ jobs:
       - name: Execute Module Pester Unit Tests
         shell: pwsh
         run: |
-          $pesterConfig = [PesterConfiguration]::Default
+          # Each workflow step is its own pwsh process, so the import done
+          # in the install step does not carry over. Without this the
+          # [PesterConfiguration] type is not loaded here.
+          Import-Module -Name Pester -MinimumVersion 5.0.0 -Force
+
+          $pesterConfig = New-PesterConfiguration
           $pesterConfig.Run.Path = @(
             './Core/Tests'
             './Modules/O365Toolkit.Entra/Tests'
